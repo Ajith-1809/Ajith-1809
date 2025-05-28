@@ -1,0 +1,36 @@
+*{
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.outer{
+    height: 100vh;
+    width: 100vw;
+    background-color: gainsboro;
+    display: flex;
+    align-items: center;
+}
+
+.inner{
+    height: 450px;
+    width: 550px;
+    margin-left: 20px;
+}
+
+.c{
+    height: 80px;
+    width: 80px;
+    border-radius: 50%;
+    background-color: green;
+    margin: 25px;
+    display: flex;
+    flex-direction: row;
+    border: 3px solid black;
+}
+
+.c:hover{
+    transform: translate(400px);
+    background-color: lch(71.97% 67.26 93.88 / 0.705);
+    transition: 4s;
+}

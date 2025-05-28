@@ -1,0 +1,18 @@
+*{
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.outer{
+   /* background-image: url(https://i.pinimg.com/736x/29/85/4a/29854a09a6bfa2906f9029e54b9a4efe.jpg); */
+    height: 100vh;
+    width: 100vw;
+   /* background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+
+    background-image: linear-gradient(to bottom, blue, red, yellow, white, green); */
+
+    background-image: conic-gradient(red 45deg, yello );
+}

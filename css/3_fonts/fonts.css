@@ -1,0 +1,17 @@
+*{
+    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+}
+
+.header{
+    height: 250px;
+    background-color: antiquewhite;
+}
+
+#para1{
+    font-size: 20px;
+    font-style: italic;
+}
+
+li{
+    font-weight: bold;
+}

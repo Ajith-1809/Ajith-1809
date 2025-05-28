@@ -1,0 +1,45 @@
+.nav{
+    height: 100px;
+    background-color: black;
+}
+
+.nav > .logo{
+    color: orangered;
+}
+
+.nav > ul > li{
+    color: white;
+    list-style: none;
+}
+
+.container{
+    background-color: antiquewhite;
+    height: 250px;
+}
+
+.container > button{
+    background-color: brown;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+/* 1.hover */
+
+.container > button:hover{
+    background-color: green;
+    color: black;
+    width: 150px;
+}
+
+/* 2.active */
+
+.container > button:active{
+    background-color: blue;
+}
+
+/* nth child */
+
+.container2 > ul > li:nth-child(3){
+    color: green;
+}

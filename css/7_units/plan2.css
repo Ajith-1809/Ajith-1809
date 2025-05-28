@@ -1,0 +1,189 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body styling */
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Floating animation for the whole card */
+@keyframes floatCard {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* Text floating animation */
+@keyframes floatText {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Pulse effect */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(76, 161, 175, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 20px rgba(76, 161, 175, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(76, 161, 175, 0);
+    }
+}
+
+/* Button border glow */
+@keyframes borderGlow {
+    0% {
+        box-shadow: 0 0 5px #4ca1af;
+    }
+    50% {
+        box-shadow: 0 0 15px #4ca1af;
+    }
+    100% {
+        box-shadow: 0 0 5px #4ca1af;
+    }
+}
+
+/* Main container */
+.container {
+    background: #ffffff;
+    width: 360px;
+    padding: 2.2rem;
+    border-radius: 25px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    animation: floatCard 6s ease-in-out infinite, fadeSlideIn 1s ease forwards;
+}
+
+/* Circle image + pulse */
+.circle {
+    width: 130px;
+    height: 130px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 6px solid #4ca1af;
+    animation: rotateIn 1s ease-out, pulse 2.5s infinite;
+}
+
+.circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Name floating */
+h2 {
+    font-size: 1.9rem;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    animation: floatText 4s ease-in-out infinite, fadeSlideIn 1.2s ease forwards;
+}
+
+/* Location and description */
+.box1 h3,
+.box2 h3 {
+    font-size: 1rem;
+    color: #777;
+    margin: 6px 0;
+    animation: fadeSlideIn 1.4s ease forwards;
+}
+
+/* Button style */
+button {
+    background: #4ca1af;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    margin: 10px 6px;
+    border-radius: 30px;
+    font-size: 0.95rem;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    animation: fadeSlideIn 1.6s ease forwards, borderGlow 3s infinite;
+}
+
+/* Ripple effect */
+button::after {
+    content: '';
+    position: absolute;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    width: 0;
+    height: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: width 0.5s ease, height 0.5s ease;
+}
+
+button:active::after {
+    width: 300%;
+    height: 300%;
+    opacity: 0;
+}
+
+/* Button hover effects */
+button:hover {
+    background: #357d89;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px #4ca1af;
+}
+
+/* Slide in animation */
+@keyframes fadeSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Rotate in */
+@keyframes rotateIn {
+    0% {
+        transform: scale(0) rotate(360deg);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+}
+
+/* Responsive */
+@media screen and (max-width: 420px) {
+    .container {
+        width: 90%;
+    }
+
+    button {
+        display: block;
+        width: 100%;
+        margin: 10px auto;
+    }
+}

@@ -1,0 +1,58 @@
+nav{
+    background-color: antiquewhite;
+}
+
+#logo{
+    color: red;
+}
+
+main{
+    height: 200px;
+    background-color: aquamarine;
+    text-align: center;
+}
+
+section{
+    height: 350px;
+    background-color: blueviolet;
+}
+
+.card{
+    background-color: blanchedalmond;
+    height: 100px;
+    width: 250px;
+    text-align: center;
+}
+
+article{
+    background-color: black;
+    height: 100px;
+    width: 250px;
+}
+
+.box{
+    height: 100px;
+    width: 250px;
+    background-color: aqua;
+}
+
+footer{
+    height: 100px;
+    background-color: brown;
+}
+
+/* group selector*/
+
+.box,footer{
+    text-align: center;
+}
+
+p,h3{
+    color: white;
+}
+
+/* universal selextor */
+
+*{
+    font-style: italic;
+}

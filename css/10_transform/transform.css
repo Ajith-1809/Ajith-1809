@@ -1,0 +1,60 @@
+*{
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.outer{
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    background-color: black;
+    justify-content: space-evenly;
+    align-items: center;
+}
+
+
+
+.outer>#box-1{
+    background-color: yellow;
+    color: black;   
+    transition: all 2s ease-in-out;
+
+}
+.outer>#box-2{
+    background-color: green;
+    color: white;
+
+}
+.outer>#box-3{
+    background-color: red;
+    color: white;
+
+}
+.outer>#box-4{
+    background-color: blue;
+    color: white;
+
+}
+.outer>#box-5{
+    background-color: white;
+    color: black;
+
+}
+.outer>#box-6{
+    background-color: palevioletred;
+    color: black;
+}
+
+.inner{
+    display: flex;
+    justify-content: center;
+    align-items:center;
+    font-size: 19px;
+    font-weight: bold;
+    height: 150px;
+    width: 150px;
+}
+.outer>#box-1:hover{
+    transform: translate(100px,100px);
+}

@@ -1,0 +1,14 @@
+main{
+    background-color: aqua;
+    height: 250px;
+}
+
+img{
+    height: 250px;
+}
+
+footer{
+    background-color: antiquewhite;
+    color: lab(52.6% 79.18 27.85);
+    height: 250px;
+}
