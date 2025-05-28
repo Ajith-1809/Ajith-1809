@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee form</title>
+</head>
+<body>
+    <h1>Employee form</h1>
+    <form action="" autocomplete="off" method="">
+        <fieldset>
+            <legend>Employee information</legend>
+            <label for="Ename">Enter Name:</label>
+            <input type="text" name="Ename" id="Ename" placeholder="Enter Name" value="" required> <br> <br>
+    
+            <label for="phno">Phone Number:</label>
+            <input type="tel" name="EPhNo" id="phno" placeholder="Enter Phone Number" maxlength="10"> <br> <br>
+    
+            <label for="Epass">Enter Password:</label>
+            <input type="password" name="Epass" id="Epass" placeholder="Enter Password" minlength="6"> <br> <br>
+
+        </fieldset>
+        <fieldset>
+            <legend>Personal info</legend>
+            <label for="email">Enter Email:</label>
+            <input type="email" name="email" id="email" placeholder="Enter Email" value="fggfgf" readonly> <br><br>
+    
+            <label for="age">Enter age:</label>
+            <input type="number" name="age" id="age" placeholder="Enter age"> <br> <br>
+
+            <label for="dob">DOB:</label>
+            <input type="date" name="dob" id="dob"> <br><br>
+
+            <label for="add">Enter Address</label> <br>
+            <textarea name="address" id="add" rows="10" cols="18" placeholder="Enter Address"></textarea>
+        </fieldset>
+        <fieldset>
+            <legend>checkbox radio select</legend>
+            <label for="">Select subject</label> <br>
+
+            <label for="sub1">HTML</label>
+            <input type="checkbox" name="sub1" id="sub1" value="html"> <br> <br>
+
+            <label for="sub2">CSS</label>
+            <input type="checkbox" name="sub2" id="sub2" value="css"> <br> <br>
+
+            <label for="sub3">JAVASCRIPT</label>
+            <input type="checkbox" name="sub3" id="sub3" value="js"> <br> <br>
+
+            <label for="">Select gender</label> <br>
+            <label for="">Male</label>
+            <input type="radio" name="gender" id="" value="Male"> <br> <br>
+
+            <label for="">Female</label>
+            <input type="radio" name="gender" id="" value="Female"> <br> <br>
+
+            <label for="">Others</label>
+            <input type="radio" name="gender" id="" value="Others"> <br> <br>
+
+            <label for="">Select course</label>
+
+            <select name="course" id="">
+                <option value="java">Java</option>
+                <option value="python">Python</option>
+                <option value="mern">MERN</option>
+            </select> <br> <br>
+
+            <label for="">Expected salary</label>
+            <input type="range" name="salary" id="" min="20000" max="80000">
+        </fieldset>
+        <fieldset>
+            <legend>Buttons</legend>
+            <button type="submit">Register</button>
+            <button type="reset">Reset</button>
+
+            <input type="submit" value="submit by input">
+            <input type="reset" value="reset by input">
+        </fieldset>
+    </form>
+</body>
+</html>
