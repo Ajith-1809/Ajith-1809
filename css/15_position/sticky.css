@@ -1,0 +1,27 @@
+*{
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+h1{
+    background-color: aqua;
+    padding: 20px;
+    text-align: center;
+}
+
+nav{
+    display: flex;
+    justify-content: end;
+    background-color: blue;
+    position: sticky;
+    top: 0;
+}
+ul{
+    display: flex;
+    list-style: none;
+    gap: 20px;
+    padding: 20px;
+    color: white;
+
+}

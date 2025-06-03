@@ -1,0 +1,214 @@
+* {
+    padding: o;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.outer {
+    height: 100vh;
+    background-image: linear-gradient(to right, black, white);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.left {
+    height: 300px;
+    width: 300px;
+    border: 3px solid white;
+}
+
+.right {
+    height: 300px;
+    width: 300px;
+    border: 3px solid black;
+    position: relative;
+}
+
+.left>.box1 {
+    height: 100px;
+    width: 100px;
+    background-color: red;
+    animation: slider 1s ease-in infinite alternate;
+}
+
+.right>.box2 {
+    height: 100px;
+    width: 100px;
+    background-color: green;
+    animation: rotating 1s ease-in infinite;
+}
+.right>.box3 {
+    height: 100px;
+    width: 100px;
+    background-color: green;
+    animation: rotating 1s ease-in infinite;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+.right>.box4 {
+    height: 100px;
+    width: 100px;
+    background-color: green;
+    animation: rotating 1s ease-in infinite;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+}
+.right>.box5 {
+    height: 100px;
+    width: 100px;
+    background-color: green;
+    animation: rotating 1s ease-in infinite;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+}
+
+@keyframes rotating {
+
+    from {
+        transform: rotate(0);
+        background-color: green;
+    }
+
+    to {
+        transform: rotate(360deg);
+        background-color: red;
+        border-radius: 50%;
+    }
+
+}
+
+@keyframes slider {
+
+    from{
+        transform: translate(0,0);
+    }
+
+    to{
+        transform: translate(200px,0);
+    }
+    
+}
+
+.outer2{
+    height: 100vh;
+    background-image: linear-gradient(to right,red,orangered,yellow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.inner1{
+    height: 300px;
+    width: 300px;
+    border: 3px solid;
+    background-color: black;
+     display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.inner2{
+    height: 300px;
+    width: 300px;
+    border: 3px solid white;
+    border-radius: 50%;
+    animation: rotate2 1s linear infinite;
+}
+.inner3{
+    height: 300px;
+    width: 300px;
+    border: 3px solid;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.circle1{
+    height: 100px;
+    width: 100px;
+    border-top: 3px solid green;
+    border-radius: 50%;
+    animation: rotate1 0.8s ease-in infinite;
+}
+
+.circle2{
+    height: 90px;
+    width: 90px;
+    border-radius: 50%;
+    border: 3px solid white;
+}
+
+.circle3{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.circle3>.c{
+    height: 35px;
+    width: 35px;
+    border-radius: 50%;
+    border: 2px solid;
+}
+
+#c1{
+    background-color: blue;
+        animation: up-down 1.3s infinite alternate;
+        animation-delay: 0.2s;
+}
+#c2{
+    background-color: aqua;
+            animation: up-down 1.3s infinite alternate;
+        animation-delay: 0.3s;
+}
+#c3{
+    background-color: yellow;
+            animation: up-down 1.3s infinite alternate;
+        animation-delay: 0.4s;
+}
+#c4{
+    background-color: green;
+            animation: up-down 1.3s infinite alternate;
+        animation-delay: 0.5s;
+}
+#c5{
+    background-color: red;
+            animation: up-down 1.3s infinite alternate;
+        animation-delay: 0.6s;
+}
+
+@keyframes rotate1 {
+
+    from{
+        transform: rotate(0);
+    }
+    to{
+        transform: rotate(360deg);
+    }
+    
+}
+@keyframes rotate2 {
+
+    from{
+        transform: rotate(0);
+    }
+    to{
+        transform: rotate(360deg);
+    }
+    
+}
+
+@keyframes up-down {
+
+    from{
+        transform: translateY(0);
+    }
+    to{
+        transform: translateY(-100px);
+    }
+    
+}

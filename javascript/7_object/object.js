@@ -1,7 +1,7 @@
 // ! How to create object
 
-let student = {
-    sname:"rohit",
+let student = { // ---------------->let identifier
+    sname:"rohit",//  ------------->(key:values)
     age:10,
     isPlayer:true,
     sub:["html","css","js"],

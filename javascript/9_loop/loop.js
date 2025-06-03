@@ -8,6 +8,4 @@ for(let i=1 ; i<=5 ; i++){
 // ! while loop
 
 let m=10
-while(){
-    
-}
+while(){};
