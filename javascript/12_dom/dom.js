@@ -83,13 +83,14 @@ lastbox.innerHTML = `<h1>I am last box</h1>
 
 // ! 6.How to create element
 
-let card1 = document.querySelector(".card")
-let card11 = card1.document.createElement("div")
-card11.classList.add("div1")
-console.log(card11.classList);
-card11.append(".div1")
-
-
+let card1= document.querySelector(".card")
+let newdiv = document.createElement("div")
+newdiv.classList.add("div1")
+console.log(newdiv.classList);
+// card1.append(newdiv)
+card1.prepend(newdiv)
+// card1.after(newdiv)
+// card1.before(newdiv)
 
 
 
