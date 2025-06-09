@@ -55,3 +55,35 @@ History of Reactjs :
 --> It was first used in Facebook's News Feed and later in Instagram.
 --> It was made an open-source library in 2013 to be used by developers worldwide.
 --> As of March 2025, React.js has had a total of 19 major versions released.
+
+
+Characteristics of React.js
+============================
+
+React JS is a JS Library :
+==========================
+--> React.js is a lightweight library created using JavaScript. It primarily focuses on the view layer of an application.
+
+Free and Open Source :
+=========================
+--> React is maintained by Meta (formerly Facebook) and is open source, allowing developers worldwide to contribute and improve it.
+
+Component-Based Architecture :
+===============================
+--> A component in React splits your UI into small, reusable pieces. Each component handles its own logic and rendering, making your app modular and maintainable.
+
+Declarative :
+========================
+--> Declarative means you tell React what you want, and React figures out how to do it. Instead of manually updating the DOM, you describe the UI state, and React updates it efficiently.
+
+Unidirectional Data Flow :
+===========================
+--> Unidirectional Data Flow in React means data flows in one direction - from parent component to child components via props. This ensures predictable data flow, making it easier to debug.
+
+Learn once write anywhere :
+===========================
+--> "Learn Once, Write Anywhere" in React Native means you can use your React knowledge to build apps for multiple platforms (web, iOS, Android) without learning separate technologies for each.
+
+Virtual DOM :
+===========================
+--> React uses a Virtual DOM to optimize updates. React does not update the real DOM directly because it's slow. Instead, it uses a Virtual DOM, which is a lightweight copy of the real DOM.
