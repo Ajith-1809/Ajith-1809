@@ -147,7 +147,30 @@ console.log(ob4.hasOwnProperty("city"));
 console.log(ob4.hasOwnProperty("sname"));
 
 
+// ! 10.array object traverse
 
+let tra=[
+    {name:"lenovo",
+        price:25000,
+        rating:2.1
+    },
+    {
+        name:"hp",
+        price:30000,
+        rating:4.3
+    },
+    {
+        name:"asus",
+        price:35000,
+        rating:40000
+    }
+]
+
+let newtra = tra.map((ele)=>{
+    return ele.name
+})
+
+console.log(newtra);
 
 
 

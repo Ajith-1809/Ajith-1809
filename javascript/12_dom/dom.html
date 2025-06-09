@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dom </title>
+
+   <style>
+       *{
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+       }
+
+       nav{
+        height: 80px;
+        background-color: antiquewhite;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+       }
+
+       nav > ul{
+        display: flex;
+        gap:15px;
+        list-style: none;
+       }
+
+       nav > ul > li{
+        font-size: 19px;
+        font-weight: bold;
+        
+       }
+
+       section{
+        display: flex;
+        height: 275px;
+        background-color: bisque;
+        justify-content: space-around;
+        align-items: center;
+       }
+
+       section > .card{
+        height: 245px;
+        width: 300px;
+        background-color: white;
+        padding: 10px 20px;
+        border-radius: 16px;
+       }
+
+       article{
+        height: 350px;
+        background-color: #212120;
+        display: flex;
+        justify-content: space-evenly;
+        align-items: center;
+       }
+
+       article > .box{
+        height: 275px;
+        width: 300px;
+        background-color: white;
+        border-radius: 20px;
+        padding: 10px 20px;
+       }
+
+       article>.dark{
+        background-color: green;
+       }
+
+       .div1{
+        border-radius: 50%;
+        border: solid;
+       }
+   </style>
+</head>
+<body>
+    
+    <nav>
+        <h2 id="logo">mylogo</h2>
+
+        <ul>
+            <li> home </li>
+            <li id="about"> About</li>
+            <li> contact</li>
+        </ul>
+    </nav>
+
+<section>
+        <div class="card">
+            <h3> card1</h3>
+            <p> Lorem ipsum dolor sit, amet consectetur adipisicing elit. Neque, possimus.</p>
+        </div>
+        <div class="card">
+            <h3> card1</h3>
+            <p> Lorem ipsum dolor sit, amet consectetur adipisicing elit. Neque, possimus.</p>
+        </div>
+        <div class="card">
+            <h3> card1</h3>
+            <p> Lorem ipsum dolor sit, amet consectetur adipisicing elit. Neque, possimus.</p>
+        </div>
+        
+    </section>
+
+    <article>
+        <div class="box"></div>
+        <div class="box"></div>
+        <div class="box"></div>
+    </article>
+
+    <script src="./dom.js"></script>
+</body>
+</html>
