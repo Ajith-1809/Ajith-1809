@@ -1,0 +1,57 @@
+what is reactjs ?
+=================
+--> reactjs is a front end js library for building user interface.
+--> it is used for creating single page applications.
+--> it allow developers to create re-usable UI components making the development more faster and efficient.
+
+library Vs Framework
+=====================
+
+library :
+=========
+--> library is a collection of pre-written code that you can use to perform specific task.
+--> it does not have rules and syntax are to be followed.
+--> you can use however you want.
+--> But library does not provide you everything, you might require to use another library also.
+
+--> Example ==> React JS, GSAP.
+
+Framework :
+===========
+--> Framework is a complete structure of building an application. It provides rules, patterns, and tools, and often dicates how your code should be structured.
+--> It is built over your libraries and there is a proper syntax and rules we have to follow.
+--> You can't do and use it however you see fit but it provides you with everything, no need of anything else.
+
+--> Example ==> Tailwind, Angular.
+
+SPA Vs MPA
+===========
+
+What is SPA ?
+============
+--> A SPA stands for sinle page application.
+--> Loads a single HTML page and updates content dynamically without reloading the page.
+--> Faster after the first load, as only necessary data is updated.
+--> No reload of web page happens.
+--> Requests are continued forward.
+
+--> Examples : ==> Gmail, Facebook, Twitter.
+
+What is MPA ?
+=============
+--> A MPA stands for Multi-page application.
+--> Each page is a separate HTML file, making navigation slower.
+--> slower performance, as the browser loads everything again on each page change.
+--> Every new page request reloads the entire page from the server.
+--> Every time Requests starts from 0.
+
+--> Examples : ==> Wikipedia, News websites, Banking portals.
+
+History of Reactjs :
+=====================
+--> The SPA is not a new term, it has been since 2002. But we didn't haave technology at the time.
+--> In 2009, we got angularjs for creating SPA, but it was not optimized and had bugs.
+--> In 2011 reactjs was created by Jordan Walke while working as a software engineer at Facebook (now known as a meta).
+--> It was first used in Facebook's News Feed and later in Instagram.
+--> It was made an open-source library in 2013 to be used by developers worldwide.
+--> As of March 2025, React.js has had a total of 19 major versions released.
