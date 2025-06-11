@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        #parent {
+            display: flex;
+            height: 100vh;
+            justify-content: center;
+            align-items: center;
+            background-color: antiquewhite;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #child {
+            width: 350px;
+            padding: 10px 20px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        form > label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 17px;
+        }
+
+        form > input {
+            display: block;
+            margin-bottom: 8px;
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+        }
+        #result {
+            margin-left: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 400px;
+            color: green;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: white;
+        }
+
+        form > button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #666;
+            color: white;
+            transition: background-color 0.4s ease-in;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="parent">
+        <div id="child">
+            <form action="">
+                <label for="number">Number1</label>
+                <input type="number" id="number1" placeholder="enter number">
+                <label for="number">Number2</label>
+                <input type="number" id="number2" placeholder="enter number">
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script src="./task.js"></script>
+</body>
+</html>

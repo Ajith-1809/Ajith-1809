@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ajithkumar V - Modern Portfolio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @layer base {
+            html {
+                font-family: 'Inter', sans-serif;
+            }
+        }
+        body {
+            background-color: #f8fafc; /* Lighter background */
+            color: #334155; /* Slate 800 */
+        }
+        /* Custom scroll behavior for smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+        /* Navbar specific styles for modern look */
+        .navbar-blur {
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            background-color: rgba(255, 255, 255, 0.7); /* Slightly transparent white */
+        }
+        /* Hero video with overlay */
+        .hero-video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+        .hero-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(29, 78, 216, 0.7), rgba(99, 102, 241, 0.7)); /* Darker gradient overlay */
+            z-index: 1;
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2; /* Ensure content is above overlay */
+        }
+
+        /* Card hover effects */
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Button styles */
+        .btn-primary {
+            background: linear-gradient(to right, #4f46e5, #8b5cf6); /* Indigo to Violet */
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(79, 70, 229, 0.4);
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+        .animate-fadeInDown { animation: fadeInDown 1s ease-out forwards; }
+        .animate-fadeInUp { animation: fadeInUp 1s ease-out forwards; animation-delay: 0.5s; }
+        .animate-bounceIn { animation: bounceIn 0.8s ease-out forwards; animation-delay: 1s; }
+        .animate-slideInLeft {
+            animation: slideInLeft 0.8s ease-out forwards;
+        }
+        .animate-slideInRight {
+            animation: slideInRight 0.8s ease-out forwards;
+        }
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <header class="fixed w-full z-50 py-4 navbar-blur shadow-md">
+        <nav class="container mx-auto px-6 flex flex-col sm:flex-row justify-between items-center">
+            <div class="text-3xl font-extrabold text-blue-700 mb-2 sm:mb-0">
+                <a href="#hero" class="hover:text-blue-900 transition-colors duration-300">AJITHKUMAR V</a>
+            </div>
+            <ul class="flex space-x-6">
+                <li><a href="#about" class="nav-link text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300">About</a></li>
+                <li><a href="#skills" class="nav-link text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300">Skills</a></li>
+                <li><a href="#experience" class="nav-link text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300">Experience</a></li>
+                <li><a href="#education" class="nav-link text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300">Education</a></li>
+                <li><a href="#contact" class="nav-link text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="pt-20">
+        <section id="hero" class="relative h-screen flex items-center justify-center text-center text-white overflow-hidden">
+            <div class="hero-video-container">
+                <video autoplay loop muted playsinline class="hero-video">
+                    <source src="https://assets.mixkit.co/videos/preview/mixkit-abstract-particles-moving-across-a-black-background-4076-large.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="video-overlay"></div> </div>
+            <div class="hero-content p-6 max-w-4xl mx-auto">
+                <h1 class="text-6xl md:text-8xl font-extrabold leading-tight mb-4 animate-fadeInDown drop-shadow-lg">
+                    Hi, I'm <span class="text-sky-300">AJITHKUMAR V</span>
+                </h1>
+                <p class="text-xl md:text-2xl mb-8 animate-fadeInUp drop-shadow">
+                    A highly motivated and skilled Fresher with a passion for developing innovative solutions.
+                </p>
+                <a href="#about" class="btn-primary inline-block animate-bounceIn">
+                    Learn More About Me
+                </a>
+            </div>
+        </section>
+
+        <section id="about" class="py-16 md:py-24 bg-white rounded-xl shadow-lg m-4 md:m-8">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-4xl font-extrabold text-gray-800 mb-12">About Me</h2>
+                <div class="flex flex-col md:flex-row items-center md:items-start justify-center gap-12">
+                    <div class="flex-shrink-0 mb-6 md:mb-0 animate-slideInLeft">
+                        <img src="https://placehold.co/250x250/dbeafe/4f46e5?text=Your+Photo" alt="Your Photo" class="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover shadow-xl border-4 border-blue-400">
+                    </div>
+                    <div class="text-lg text-gray-700 max-w-2xl text-left animate-slideInRight">
+                        <p class="mb-4 leading-relaxed">
+                            Hello! I'm <span class="font-semibold text-blue-700">AJITHKUMAR V</span>. I am a highly motivated and skilled Fresher with a passion for developing innovative solutions, constantly eager to explore and implement new technologies.
+                        </p>
+                        <p class="mb-4 leading-relaxed">
+                            My career objective is to work and learn, contributing effectively to the growth of any organization by continuously developing and sharing my skills and abilities. I am committed to a path of continuous improvement and adaptation.
+                        </p>
+                        <p class="leading-relaxed">
+                            I am currently pursuing a Bachelor of Engineering at Anna University, building foundational knowledge in various technical domains, and aspiring to apply my academic insights to real-world challenges.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="skills" class="py-16 md:py-24 bg-blue-50 rounded-xl shadow-lg m-4 md:m-8">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-4xl font-extrabold text-gray-800 mb-12">My Skills</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div class="bg-white p-8 rounded-xl shadow-md card flex flex-col items-center">
+                        <i class="ri-heart-line text-5xl text-purple-600 mb-4"></i>
+                        <h3 class="text-2xl font-semibold mb-3 text-gray-800">Soft Skills</h3>
+                        <ul class="list-disc list-inside text-gray-700 text-left space-y-1">
+                            <li>Teamwork and Collaboration</li>
+                            <li>Adaptability and Flexibility</li>
+                            <li>Learning Agility and Continuous Improvement</li>
+                            <li>Self-Motivation and Initiative</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-md card flex flex-col items-center">
+                        <i class="ri-code-s-slash-line text-5xl text-blue-600 mb-4"></i>
+                        <h3 class="text-2xl font-semibold mb-3 text-gray-800">Software & IT Skills</h3>
+                        <ul class="list-disc list-inside text-gray-700 text-left space-y-1">
+                            <li>Operating systems (Windows, Linux)</li>
+                            <li>Auto CAD</li>
+                            <li>Machine Learning Basics</li>
+                            <li>Network Engineering Basics</li>
+                            <li>Java and Python</li>
+                            <li>MySQL, HTML</li>
+                            <li>Machine Learning and Data Analytics</li>
+                            <li>Network Engineering</li>
+                            <li>Android Custom OS Development</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-md card flex flex-col items-center">
+                        <i class="ri-tools-line text-5xl text-green-600 mb-4"></i>
+                        <h3 class="text-2xl font-semibold mb-3 text-gray-800">Mechanical & Tools Skills</h3>
+                        <ul class="list-disc list-inside text-gray-700 text-left space-y-1">
+                            <li>MS Office</li>
+                            <li>CNC operating and pneumatic systems</li>
+                            <li>Press tools</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="experience" class="py-16 md:py-24 bg-white rounded-xl shadow-lg m-4 md:m-8">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-4xl font-extrabold text-gray-800 mb-12">Experience</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <div class="bg-gray-50 p-6 rounded-xl shadow-md card">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">Production and Quality / CNC Operator</h3>
+                        <p class="text-blue-600 font-medium mb-1">TVS Brakes India Pvt Ltd</p>
+                        <p class="text-gray-600 text-sm mb-4">May 2019 - Dec 2020</p>
+                        <ul class="list-disc list-inside text-gray-700 text-left space-y-1">
+                            <li>Involved in production and quality control processes.</li>
+                            <li>Operated CNC machines effectively to ensure precise manufacturing.</li>
+                            <li>Gained hands-on experience in industrial manufacturing environments.</li>
+                        </ul>
+                    </div>
+                    <div class="bg-gray-50 p-6 rounded-xl shadow-md card">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">Production and Quality / CNC Operator</h3>
+                        <p class="text-blue-600 font-medium mb-1">Cross Manufacturing Pvt Ltd</p>
+                        <p class="text-gray-600 text-sm mb-4">Feb 2021 - Aug 2021</p>
+                        <ul class="list-disc list-inside text-gray-700 text-left space-y-1">
+                            <li>Contributed to production efficiency and maintained quality standards.</li>
+                            <li>Proficiently operated CNC machinery for various manufacturing tasks.</li>
+                            <li>Developed further expertise in mechanical engineering applications.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="education" class="py-16 md:py-24 bg-blue-50 rounded-xl shadow-lg m-4 md:m-8">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-4xl font-extrabold text-gray-800 mb-12">Education</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                    <div class="bg-white p-6 rounded-xl shadow-md card">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">Bachelor of Engineering</h3>
+                        <p class="text-blue-600 font-medium mb-1">University College of Engineering</p>
+                        <p class="text-gray-600 text-sm mb-4">Anna University</p>
+                        <p class="text-gray-700">Percentage/CGPA: <span class="font-semibold">78%</span> (Pursuing)</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md card">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">Diploma in Mechanical Engineering</h3>
+                        <p class="text-blue-600 font-medium mb-1">Chendhuran Polytechnic College</p>
+                        <p class="text-gray-600 text-sm mb-4">Directorate of Technical Education</p>
+                        <p class="text-gray-700">Percentage/CGPA: <span class="font-semibold">88%</span></p>
+                        <p class="text-gray-600 text-sm mt-1">Year of Passing: <span class="font-semibold">2019</span></p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md card">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">HSC</h3>
+                        <p class="text-blue-600 font-medium mb-1">Government Higher Secondary School</p>
+                        <p class="text-gray-600 text-sm mb-4">State Board</p>
+                        <p class="text-gray-700">Percentage/CGPA: <span class="font-semibold">65%</span></p>
+                        <p class="text-gray-600 text-sm mt-1">Year of Passing: <span class="font-semibold">2017</span></p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md card">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">SSLC</h3>
+                        <p class="text-blue-600 font-medium mb-1">Government Higher Secondary School</p>
+                        <p class="text-gray-600 text-sm mb-4">State Board</p>
+                        <p class="text-gray-700">Percentage/CGPA: <span class="font-semibold">85%</span></p>
+                        <p class="text-gray-600 text-sm mt-1">Year of Passing: <span class="font-semibold">2015</span></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="py-16 md:py-24 bg-white rounded-xl shadow-lg m-4 md:m-8">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-4xl font-extrabold text-gray-800 mb-8">Get In Touch</h2>
+                <p class="text-lg text-gray-700 mb-8 max-w-xl mx-auto leading-relaxed">
+                    I'm always open to new opportunities and collaborations. Feel free to reach out via email or phone.
+                </p>
+                <div class="flex flex-col items-center space-y-6">
+                    <div class="flex items-center text-xl text-gray-700">
+                        <i class="ri-mail-line text-2xl text-blue-600 mr-3"></i>
+                        <span id="email-address" class="break-all">ajithkumar1891999@gmail.com</span>
+                        <button id="copy-email-btn" class="ml-3 px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded-full hover:bg-blue-600 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                            Copy
+                        </button>
+                    </div>
+                    <div id="copy-message" class="text-sm text-green-600 opacity-0 transition-opacity duration-300">Email copied!</div>
+
+                    <div class="flex items-center text-xl text-gray-700">
+                        <i class="ri-phone-line text-2xl text-blue-600 mr-3"></i>
+                        <span>+91 8610173747</span>
+                    </div>
+
+                    <div class="flex space-x-6 mt-6">
+                        <a href="https://linkedin.com/in/yourprofile" target="_blank" class="text-gray-700 hover:text-blue-700 transition-colors duration-300">
+                            <i class="ri-linkedin-box-fill text-4xl"></i>
+                            </a>
+                        <a href="https://github.com/yourprofile" target="_blank" class="text-gray-700 hover:text-gray-900 transition-colors duration-300">
+                            <i class="ri-github-fill text-4xl"></i>
+                            </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-900 text-white py-8 text-center rounded-t-xl mt-4">
+        <div class="container mx-auto px-4">
+            <p>&copy; <span id="current-year"></span> AJITHKUMAR V. All rights reserved.</p>
+            <p class="text-sm mt-2">Built with <span class="text-red-500">&hearts;</span> and a passion for engineering.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Set current year in footer
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+
+        // Copy email to clipboard functionality
+        document.getElementById('copy-email-btn').addEventListener('click', function() {
+            const emailAddress = document.getElementById('email-address').textContent;
+            const tempInput = document.createElement('textarea');
+            tempInput.value = emailAddress;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy'); // Use execCommand for broader compatibility in iFrames
+            document.body.removeChild(tempInput);
+
+            const copyMessage = document.getElementById('copy-message');
+            copyMessage.classList.remove('opacity-0');
+            copyMessage.classList.add('opacity-100');
+
+            setTimeout(() => {
+                copyMessage.classList.remove('opacity-100');
+                copyMessage.classList.add('opacity-0');
+            }, 2000);
+        });
+
+        // Optional: Highlight active nav link on scroll (more complex, but can be added)
+        const sections = document.querySelectorAll('section[id]');
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 80; // Adjust for fixed header height
+                if (pageYOffset >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.href.includes(current)) {
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // Initial check for active link on page load
+        window.dispatchEvent(new Event('scroll'));
+    </script>
+</body>
+</html>
