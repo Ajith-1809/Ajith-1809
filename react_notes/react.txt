@@ -105,13 +105,23 @@ Virtual DOM :
                                     JSX Rules and Restictions :
                                     ============================
 1 Return a single parent element:
-   - JSX must return a single parent element. If you need multiple elements, wrap them in a parent element like a `<div>` or use React Fragments (`<>...</>`).
+================================
+
+   --> JSX must return a single parent element. If you need multiple elements, wrap them in a parent element like a `<div>` or use React Fragments (`<>...</>`).
+
 2. JavaScript Expressions in `{}`:
-    JavaScript expressions(variables, functionscalls) can be used within the curly braces `{}` in JSX.
+==================================
+
+    --> JavaScript expressions(variables, functionscalls) can be used within the curly braces `{}` in JSX.
+
 3. Use className instead of class:
-   - In JSX, use `className` instead of `class` to avoid conflicts with the JavaScript `class` keyword.
+==================================
+
+   --> In JSX, use `className` instead of `class` to avoid conflicts with the JavaScript `class` keyword.
+
 4. Self-closing tags:
-    - Tags without children can be self-closed, like `<img />` or `<input />`.
+=====================
+    --> Tags without children can be self-closed, like `<img />` or `<input />`.
 
                                     JSX Expressions :
                                     =================
@@ -122,6 +132,7 @@ Key Points about JSX Expressions:
 ================================
 1. Using curly braces `{}`:
 ===========================
+
    --> Place JavaScript code within `{}` to output dynamic values or expressions in JSX.
 
     Example:
@@ -132,13 +143,14 @@ Key Points about JSX Expressions:
 
 2. allowed expressions:
 =======================
+
    --> variables :
      You can use variables within `{}` to display dynamic content.
 
      const age = 25;
      return <p>Age: {age}</p>; // Outputs: <p>Age: 25</p>
 
-    -->Math calculations:
+   --> Math calculations:
      You can perform calculations directly within JSX.
 
      return <p>Sum: {5 + 10}</p>; // Outputs: <p>Sum: 15</p>
