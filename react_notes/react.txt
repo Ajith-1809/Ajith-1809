@@ -87,3 +87,63 @@ Learn once write anywhere :
 Virtual DOM :
 ===========================
 --> React uses a Virtual DOM to optimize updates. React does not update the real DOM directly because it's slow. Instead, it uses a Virtual DOM, which is a lightweight copy of the real DOM.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+                                    JSX (JavaScript XML) :
+                                    ======================
+--> JSX stands for JavaScript XML.
+--> JSX is a syntax extension for JavaScript that allows you to write HTML-like code within your JavaScript files.
+--> Used in React to describe the UI structure in a more readable way.
+
+                                    Key Points :
+                                    =============
+1. Looks like HTML: But it's written in JavaScript files (usually with a .jsx or .js extension).
+2. Needs compilation: Browsers don't understand JSX directly, so it needs to be compiled into regular JavaScript using tools like Babel.
+3.Enhances readability: JSX makes it easier to visualize the UI structure and components, as it resembles HTML.
+
+                                    JSX Rules and Restictions :
+                                    ============================
+1 Return a single parent element:
+   - JSX must return a single parent element. If you need multiple elements, wrap them in a parent element like a `<div>` or use React Fragments (`<>...</>`).
+2. JavaScript Expressions in `{}`:
+    JavaScript expressions(variables, functionscalls) can be used within the curly braces `{}` in JSX.
+3. Use className instead of class:
+   - In JSX, use `className` instead of `class` to avoid conflicts with the JavaScript `class` keyword.
+4. Self-closing tags:
+    - Tags without children can be self-closed, like `<img />` or `<input />`.
+
+                                    JSX Expressions :
+                                    =================
+--> JSX expressions allow you to embed JavaScript expressions within JSX using curly braces `{}`.
+--> Expressions can include variables, function calls, and other JavaScript logic directly inside JSX.
+
+Key Points about JSX Expressions:
+================================
+1. Using curly braces `{}`:
+===========================
+   --> Place JavaScript code within `{}` to output dynamic values or expressions in JSX.
+
+    Example:
+    ========
+
+    const name = "John";
+    return <h1>Hello, {name}!</h1>; // Outputs: <h1>Hello, John!</h1>
+
+2. allowed expressions:
+=======================
+   --> variables :
+     You can use variables within `{}` to display dynamic content.
+
+     const age = 25;
+     return <p>Age: {age}</p>; // Outputs: <p>Age: 25</p>
+
+    -->Math calculations:
+     You can perform calculations directly within JSX.
+
+     return <p>Sum: {5 + 10}</p>; // Outputs: <p>Sum: 15</p>
+
+3.Not allowed:
+==============
+   - `if`, `for`, or `while`, loop, boolean, undefined, null, and objects cannot be used directly in JSX expressions.
+   - Instead, you can use ternary operators or logical operators to conditionally render content.
