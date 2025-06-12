@@ -123,7 +123,7 @@ Virtual DOM :
 =====================
     --> Tags without children can be self-closed, like `<img />` or `<input />`.
 
-                                    JSX Expressions :
+                                   JSX Expressions :
                                     =================
 --> JSX expressions allow you to embed JavaScript expressions within JSX using curly braces `{}`.
 --> Expressions can include variables, function calls, and other JavaScript logic directly inside JSX.
