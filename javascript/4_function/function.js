@@ -1,5 +1,5 @@
 // ! Function
-
+// function is a block of code that performs a specific task. It is reusable and can be called multiple times in the program. Functions help to organize code, make it more readable, and reduce redundancy.
 // ! How to declare function
 
 function add()
@@ -15,6 +15,7 @@ function add()
 add();
 
 // ! Function with parameter
+// A function can take parameters, which are values passed to the function when it is called. Parameters allow functions to operate on different data without changing the function's code.
 
 function greet(username)
 {
@@ -25,12 +26,14 @@ function greet(username)
 greet("javascript")
 
 // ! Function with return keyword
+// A function can return a value using the return keyword. This allows the function to send a result back to the caller, which can be used later in the program.
+// The return statement ends the function execution and specifies the value to be returned.
 
 function multiply(a,b){
     return a*b;
 }
 let res=multiply(10,2)
-console.log(res);
+console.lw21og(res);
 
 // ! Anonymous Function
 

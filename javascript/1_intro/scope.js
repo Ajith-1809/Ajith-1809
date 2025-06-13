@@ -1,7 +1,7 @@
-// ! global scope - var
+// ! global scope - var 
 // ! script scope - let,const
 
-var a=10;
+var a=10; 
 let b=20;
 const c=30;
 
