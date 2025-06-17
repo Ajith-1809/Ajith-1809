@@ -3,7 +3,7 @@ import Navbar from "./Navbar";
 let Home = () => {
     return (
         <>
-        <div>
+        <div className="back">
         <Navbar />
         <div className="home">
         <h1>Welcome to My Home Page</h1>

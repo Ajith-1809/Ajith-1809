@@ -159,3 +159,84 @@ Key Points about JSX Expressions:
 ==============
    - `if`, `for`, or `while`, loop, boolean, undefined, null, and objects cannot be used directly in JSX expressions.
    - Instead, you can use ternary operators or logical operators to conditionally render content.
+----------------------------------------------------------------------------------------------------------------------------------
+
+                                    React Components :
+                                    ===================
+--> React components are the building blocks of a React application.
+--> A component is a JavaScript function or class that returns a JSX, which describes what should appear on the screen.
+--> Components make code reusable and help break the UI into independent, manageable parts.
+
+                                    Types of Components :
+                                    ======================
+1. Functional Components:
+   =========================
+   --> Simple JavaScript functions that return JSX.
+   --> Recommended for most components in modern React because they are lightweight and easy to use.
+
+   Example:
+   ========
+   function Greeting() {
+       return <h1>Hello, World!</h1>;
+   }
+
+2. Class Components:
+   =========================
+   --> ES6 classes that extend `React.Component` and have a `render()` method to return JSX.
+   --> Used when you need to manage state or lifecycle methods, but less common in modern React.
+
+   Example:
+   ========
+   class Greeting extends React.Component {
+       render() {
+           return <h1>Hello, World!</h1>;
+       }
+   }
+
+   Why use components?
+   ====================
+   --> Reusability: Components can be reused across different parts of the application, reducing code duplication.
+   --> Maintainability: Smaller, focused components are easier to manage and update.
+   --> Separation of Concerns: Components help separate the UI into distinct sections, making it easier to understand and work on.
+   --> Composition: Components can be composed together to build complex UIs from simple building blocks.
+
+   ----------------------------------------------------------------------------------------------------------------------------------------
+
+   What are lists in React ?
+   ==========================
+   --> Lists in React are used to display the collection of data.
+   --> React allows you to easily render lists using the JavaScript `map()` method.
+
+   Example :
+   =========
+   const fruits = ["Apple","Banana","Cherry"];
+   return(
+      <ul>
+         (fruits.map((fruit) => (
+            <li{fruit}</li>
+         )))
+   )
+
+   What are keys in React ?
+   =========================
+   --> Keys are special attributes used to uniquely identify elements in a list.
+   --> They help react efficiently update and re-render the DOM by tracking which items have changed, been addwd, or removed.
+   --> Keys should be:
+                  1.Unique among sibling element.
+                  2.Consistent across renders.
+                  
+   Why are keys important ?
+   ========================
+   --> Keys improve performance by minimizing DOM manipulations.
+   --> Without keys, React can't correctly track element changes in a list, leading to potential UI bugs.
+
+   React Warning
+   ==============
+   --> If keys are not unique or are missing, React will display a warning:
+            *"Each child in a list should have a unique 'key' prop"*
+
+
+   How to use Keys
+   ================
+   --> Assign the 'key' prop to each element in the list.
+   --> The key should be a unique identifier for each item, such as an ID or index
