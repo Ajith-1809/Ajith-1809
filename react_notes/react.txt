@@ -239,4 +239,4 @@ Key Points about JSX Expressions:
    How to use Keys
    ================
    --> Assign the 'key' prop to each element in the list.
-   --> The key should be a unique identifier for each item, such as an ID or index
+   --> The key should be a unique identifier for each item, such as an ID or index.
