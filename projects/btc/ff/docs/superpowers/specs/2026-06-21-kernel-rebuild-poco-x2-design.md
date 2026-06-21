@@ -1,7 +1,7 @@
 # Kernel Rebuild for POCO X2 (sm6150, kernel 4.14) with Latest KernelSU-Next + SUSFS
 
 **Date:** 2026-06-21
-**Status:** Draft design — pending user review
+**Status:** Approved — proceeding to implementation plan
 **Owner:** Ajith
 **Spec slug:** kernel-rebuild-poco-x2
 **Target release:** `4.14.356-Unholy_V2.3-KSUN_V3.0.0_SUSFS_V1.5.9-${YYYYMMDD}`
@@ -261,11 +261,24 @@ The user will execute after first boot. Each step has a binary expected result:
 - [x] Verification table (§5.7)
 - [x] Rollback plan (§9)
 
-## 11. Open assumptions / decisions user should confirm
+## 11. Open assumptions / decisions
 
-1. Whether **4-14 NON-GKI SUSFS v1.5.9** is the right target (vs. KBapna's default v1.5.5). I am assuming "latest 4.14-compatible" per user's intent; will revisit if necessary.
-2. Whether **user has (or creates) a GitHub repo** to host the workflow. If yes → I write the YAML. If no → fallback is SukiSU-Ultra prebuilt + custom patch, but that diverges from user's chosen path.
-3. Whether **any device.base ramdisk variants** are needed. POCO X2 in particular may ship different base images depending on whether it's running a stock MIUI or phoenixin OS. This should be auto-detected from `getprop` in the workflow.
+### Resolved by user (2026-06-21)
+- **SUSFS target = v1.5.9** (latest 4.14 NON-GKI source; ravindu644 fork reference)
+- **Build site = GitHub Actions `ubuntu-latest`** (Windows host compiled out)
+- **Source base = KBapna `Unholy_KSUN+SUSFS`** (lineage preserved)
+- **KSU-Next = v3.0.0** (Dec 2025; last v3 with 4.x source support)
+
+### Investigation result: there is no SUSFS v2.x kernel-source release
+- Confirmed via sidex15/susfs4ksu-module R24 changelog: "add support for susfs v2.0.0+" is **forward-compat plumbing**, not a release. The only v2.0.0 artifact is a private compiled blob ("local-binaries: add susfs v2.0.0 local binary").
+- Confirmed via ravindu644/android_kernel_poco_x2_phoenix forks: only "[BACKPORT] fs: implement SUSFS v1.5.9" appears; no v2.0 commits.
+- Confirmed via KernelSU-Next GitHub: no v2.x exists; major jumped 1.x → 3.x. v3.0.0 is the latest source with 4.x support; v3.0.1+ ships prebuilts only for kernels 5.10+.
+- Additional finding: KernelSU-Next v3.0.0 has **no in-tree susfs source code** (`kernel/` directory contains no `susfs/` folder). SUSFS is always overlaid as external patches — already matches the design's overlay approach.
+- Conclusion: **v3.0.0 + v1.5.9 is the latest achievable build target** at this point in time.
+
+### Open (not blocking; workflow adapts automatically)
+1. **GitHub repo availability** — workflow YAML is written portable. If user has a repo, drop `.github/workflows/build.yml` in there. If not, the spec + plan can be applied to any fresh repo without modification.
+2. **Ramdisk variants** — device currently on `4.14.356-Unholy_V2.2` boot base; existing ramdisk + magisk state is reused via `magiskboot cpio patch`. If user MIUI-flashes a different base between now and flash time, the workflow re-detects via `getprop ro.boot.bootdevice` and re-pulls the boot partition.
 
 ## 12. References
 - https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel
