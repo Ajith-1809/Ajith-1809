@@ -163,7 +163,7 @@ jobs:
           # KBapna's branch already has SOME of these hooks baked in (verified:
           # fs/Makefile obj-y line + kernel/sys.c spoof_uname hook present).
           # --forward makes 'patch' idempotent: it skips already-applied hunks.
-          cp /tmp/susfs/kernel_patches/fs/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
+          cp /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
           patch --forward -p1 -d . < 50_add_susfs_in_kernel-4.14.upstream.patch || \
             echo "WARN: kernel-side SUSFS patch was not fully applicable; tree may have prior SUSFS diff."
           # Drop the upstream patch + any .orig backups so defconfig/prepare step
