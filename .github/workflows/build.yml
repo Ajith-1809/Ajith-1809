@@ -137,11 +137,17 @@ jobs:
             -o /tmp/susfs.tar.gz
           mkdir -p /tmp/susfs
           tar -xzf /tmp/susfs.tar.gz -C /tmp/susfs --strip-components=1
-          # Copy the four kernel-side files into the kernel tree
-          cp /tmp/susfs/kernel_patches/fs/susfs.c   ./fs/
-          cp /tmp/susfs/kernel_patches/fs/susfs.h   ./fs/
-          cp /tmp/susfs/kernel_patches/include/linux/susfs.h     ./include/linux/
-          cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h ./include/linux/
+          # Verified via GitLab REST that kernel-4.14 path layout is:
+          #   kernel_patches/fs/susfs.c            (and sus_su.c, no .h)
+          #   kernel_patches/fs/50_add_susfs_in_kernel-4.14.patch
+          #   kernel_patches/include/linux/susfs.h   (and susfs_def.h, sus_su.h)
+          #   kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
+          # So the kernel-tree copy plan is C source files -> fs/, headers -> include/linux/.
+          cp /tmp/susfs/kernel_patches/fs/susfs.c                       ./fs/
+          cp /tmp/susfs/kernel_patches/fs/sus_su.c                      ./fs/
+          cp /tmp/susfs/kernel_patches/include/linux/susfs.h            ./include/linux/
+          cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h        ./include/linux/
+          cp /tmp/susfs/kernel_patches/include/linux/sus_su.h           ./include/linux/
           # Apply SUSFSâ†”KSUN glue patch into the integrated KSUN tree
           if [[ -f /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]]; then
             cp /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
@@ -151,11 +157,21 @@ jobs:
               patch -p1 < 10_enable_susfs_for_ksu.patch ) || true
             rm -f ./KernelSU-Next/10_enable_susfs_for_ksu.patch
           fi
-          # KBapna's pre-bundled 50_add_susfs_in_kernel-4.14.patch vs upstream's
-          # differ; KBapna's working tree already has the hooks applied (verified
-          # in fs/Makefile). Drop KBapna's leftover so it stays consistent with
-          # whatever it has now (= we accept whatever is in tree).
-          rm -f 50_add_susfs_in_kernel-4.14.patch || true
+          # Apply the upstream 50_add_susfs_in_kernel-4.14.patch into the tree
+          # (covers fs/dcache.c, fs/namei.c, fs/namespace.c, fs/proc/*.c,
+          # fs/stat.c, fs/statfs.c, kernel/kallsyms.c, kernel/sys.c, etc).
+          # KBapna's branch already has SOME of these hooks baked in (verified:
+          # fs/Makefile obj-y line + kernel/sys.c spoof_uname hook present).
+          # --forward makes 'patch' idempotent: it skips already-applied hunks.
+          cp /tmp/susfs/kernel_patches/fs/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
+          patch --forward -p1 -d . < 50_add_susfs_in_kernel-4.14.upstream.patch || \
+            echo "WARN: kernel-side SUSFS patch was not fully applicable; tree may have prior SUSFS diff."
+          # Drop the upstream patch + any .orig backups so defconfig/prepare step
+          # never sees them as inputs in arch/arm64 configs.
+          rm -f 50_add_susfs_in_kernel-4.14.upstream.patch
+          # git would normally purge .orig; we don't have a git checkout here
+          # (the runner uses --filter=blob:none), so just rm them directly.
+          find . -name '*.orig' -type f -delete 2>/dev/null || true
           rm -rf /tmp/susfs /tmp/susfs.tar.gz
 
       - name: Verify versions
