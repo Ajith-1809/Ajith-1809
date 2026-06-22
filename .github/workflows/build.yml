@@ -108,10 +108,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          git clone --depth 1 --branch v3.0.0 \
-            https://github.com/KernelSU-Next/KernelSU-Next /tmp/next
-          rsync -a --delete /tmp/next/KernelSU-Next/ ./KernelSU-Next/
-          rm -rf /tmp/next
+          # Use the upstream setup.sh with the legacy tag so it wires up
+          # KernelSU-Next at root + drivers/kernelsu symlink + Kconfig/Makefile
+          # patches that the upstream non-GKI integration requires.
+          # setup.sh refuses to run if KernelSU-Next/ already exists; clear it.
+          if [[ -d KernelSU-Next ]]; then
+            rm -rf KernelSU-Next
+          fi
+          bash <(curl -fsSL \
+            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.0.0/kernel/setup.sh") \
+            v3.0.0
 
       - name: Overlay SUSFS v1.5.9 (Non-GKI)
         run: |
