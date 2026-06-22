@@ -70,14 +70,10 @@ jobs:
             libelf-dev libssl-dev liblz4-tool device-tree-compiler \
             binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
             cpio lz4 zip unzip bc
-          mkdir -p "$PROJECT_ROOT/build/bin"
-          curl -fL --retry 3 \
-            https://github.com/kaniqq7/mkbootimg-linux/releases/download/mkbootimg/mkbootimg \
-            -o "$PROJECT_ROOT/build/bin/mkbootimg"
-          curl -fL --retry 3 \
-            https://github.com/kaniqq7/mkbootimg-linux/releases/download/mkbootimg/unmkbootimg \
-            -o "$PROJECT_ROOT/build/bin/unmkbootimg"
-          chmod +x "$PROJECT_ROOT/build/bin/mkbootimg" "$PROJECT_ROOT/build/bin/unmkbootimg"
+          # mkbootimg/unmkbootimg intentionally NOT pulled here. The CI emits
+          # Image.gz-dtb only; boot.img repack happens on the operator's host
+          # via magiskboot (release-checklist §F). Downloading remote mkbootimg
+          # binaries proved unreliable because mirrors are being archived.
 
   source-prep:
     needs: host-prep
