@@ -1,4 +1,4 @@
-name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.9
+﻿name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.9
 
 on:
   workflow_dispatch:
@@ -34,13 +34,25 @@ jobs:
         id: tool
         run: |
           set -euo pipefail
-          URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r416183b.tar.gz"
+          # Use crdroidandroid mirror: same revision (r416183b), branch 11.0
+          # Original https://android.googlesource.com/.../clang-r416183b.tar.gz
+          # returned 400 after Google's archive path changed.
+          URL="https://codeload.github.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r416183b/tar.gz/refs/heads/11.0"
+          EXPECTED="d4d1d97e1b49839ebeb77681c9faaa3cf163737c529121f1aa9bc4eae42e144f"
           mkdir -p "$PROJECT_ROOT/build/toolchain"
-          curl -fL --retry 5 --retry-delay 5 --retry-max-time 300 "$URL" -o clang.tar.gz
-          sha256sum clang.tar.gz | cut -d' ' -f1 > "$PROJECT_ROOT/toolchain.sha256"
-          echo "sha256=$(cat "$PROJECT_ROOT/toolchain.sha256")" >> "$GITHUB_OUTPUT"
-          tar -xzf clang.tar.gz -C "$PROJECT_ROOT/build/toolchain"
+          curl -fL --retry 5 --retry-delay 5 --retry-max-time 900 "$URL" -o clang.tar.gz
+          GOT=$(sha256sum clang.tar.gz | cut -d' ' -f1)
+          if [[ "$GOT" != "$EXPECTED" ]]; then
+            echo "::error::sha256 mismatch: got $GOT, expected $EXPECTED" >&2
+            exit 1
+          fi
+          echo "$EXPECTED" > "$PROJECT_ROOT/toolchain.sha256"
+          echo "sha256=$EXPECTED" >> "$GITHUB_OUTPUT"
+          tar -xzf clang.tar.gz --strip-components=1 -C "$PROJECT_ROOT/build/toolchain"
           rm -f clang.tar.gz
+          # Smoke check: the absolute Linux-x86 clang-12 ELF must exist
+          test -x "$PROJECT_ROOT/build/toolchain/bin/clang-12"
+          "$PROJECT_ROOT/build/toolchain/bin/clang-12" --version | head -1
 
       - name: Cache toolchain (keyed on SHA)
         uses: actions/cache@v4
