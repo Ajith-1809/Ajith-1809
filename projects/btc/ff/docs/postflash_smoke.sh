@@ -1,6 +1,6 @@
-#!/system/bin/sh
+﻿#!/system/bin/sh
 # postflash_smoke.sh
-# One-shot binary pass/fail verification for the v2.3 KSUNv3.0.0+SUSFSv1.5.9 kernel.
+# One-shot binary pass/fail verification for the v2.3 KSUNv3.0.0+SUSFSv1.5.5 kernel.
 # Usage (from host):  adb shell sh -s docs/postflash_smoke.sh
 # Usage (on-device):  sh /data/local/tmp/postflash_smoke.sh
 PASS=0
@@ -13,13 +13,13 @@ check() {
     echo "PASS  $desc: $got"
     PASS=$((PASS + 1))
   else
-    echo "FAIL  $desc: expected /$expect/ — got: $got"
+    echo "FAIL  $desc: expected /$expect/ â€” got: $got"
     FAIL=$((FAIL + 1))
   fi
 }
 
 echo "=============================================="
-echo " postflash_smoke.sh  —  v2.3 KSUNv3.0.0+SUSFSv1.5.9"
+echo " postflash_smoke.sh  â€”  v2.3 KSUNv3.0.0+SUSFSv1.5.5"
 echo "=============================================="
 echo
 
@@ -42,9 +42,9 @@ SUS_VAR=$(ksu_susfs show variant 2>/dev/null || true)
 check susfs_variant "$SUS_VAR" 'NON-GKI'
 echo
 
-echo "== 5. susfs version  (expect v1.5.9) =="
+echo "== 5. susfs version  (expect v1.5.5) =="
 SUS_VER=$(ksu_susfs show version 2>/dev/null || true)
-check susfs_ver "$SUS_VER" 'v1\.5\.9'
+check susfs_ver "$SUS_VER" 'v1\.5\.5'
 echo
 
 echo "== 6. susfs enabled_features  (expect 14 lines) =="

@@ -1,4 +1,6 @@
-﻿name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.9
+﻿# Build Phoenix KSUN v3.0.0 / SUSFS v1.5.5
+
+name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.9
 
 on:
   workflow_dispatch:
@@ -69,10 +71,10 @@ jobs:
             git rsync python3 python3-venv \
             libelf-dev libssl-dev liblz4-tool device-tree-compiler \
             binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
-            cpio lz4 zip unzip bc
+            cpio lz4 zip unzip bc patch
           # mkbootimg/unmkbootimg intentionally NOT pulled here. The CI emits
           # Image.gz-dtb only; boot.img repack happens on the operator's host
-          # via magiskboot (release-checklist §F). Downloading remote mkbootimg
+          # via magiskboot (release-checklist Â§F). Downloading remote mkbootimg
           # binaries proved unreliable because mirrors are being archived.
 
   source-prep:
@@ -104,40 +106,70 @@ jobs:
           cd "$PROJECT_ROOT/build/sources/KBapna"
           git submodule update --init --recursive --depth 1 || true
 
-      - name: Overlay rifsxd KernelSU-Next v3.0.0
+      - name: Overlay rifsxd KernelSU-Next v3.0.0 via upstream setup.sh
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # Use the upstream setup.sh with the legacy tag so it wires up
-          # KernelSU-Next at root + drivers/kernelsu symlink + Kconfig/Makefile
-          # patches that the upstream non-GKI integration requires.
-          # setup.sh refuses to run if KernelSU-Next/ already exists; clear it.
+          # The canonical non-GKI flow is upstream setup.sh: it clones
+          # https://github.com/KernelSU-Next/KernelSU-Next at the requested
+          # tag, pins v3.0.0, and wires the Kconfig source directive + Makefile
+          # obj-y that drivers/kernelsu/ needs. setup.sh refuses to run if
+          # ./KernelSU-Next already exists; clear it.
           if [[ -d KernelSU-Next ]]; then
             rm -rf KernelSU-Next
           fi
-          bash <(curl -fsSL \
-            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.0.0/kernel/setup.sh") \
-            v3.0.0
+          curl -fsSL \
+            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.0.0/kernel/setup.sh" \
+            -o /tmp/ksun-setup.sh
+          bash /tmp/ksun-setup.sh v3.0.0
+          rm -f /tmp/ksun-setup.sh
 
-      - name: Overlay SUSFS v1.5.9 (Non-GKI)
+      - name: Overlay SUSFS v1.5.5 (kernel-4.14 branch) into kernel tree
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          git clone --depth 1 https://github.com/sidex15/susfs4ksu-module /tmp/susfs
-          mkdir -p fs include/linux
-          cp /tmp/susfs/fs/susfs.c /tmp/susfs/fs/susfs.h ./fs/
-          cp /tmp/susfs/include/linux/susfs.h /tmp/susfs/include/linux/susfs_def.h ./include/linux/
+          # The 4.14 NON-GKI branch is the only one that ships patches KBapna's
+          # v2.2 tree expects. v1.5.5 is the same version the device already
+          # runs; we are rebuilding with current KSUN + same SUSFS so the
+          # userspace ksud (v3.2.0) stays ABI-stable.
+          curl -fL --retry 3 --retry-max-time 120 \
+            "https://gitlab.com/simonpunk/susfs4ksu/-/archive/kernel-4.14/susfs4ksu-kernel-4.14.tar.gz" \
+            -o /tmp/susfs.tar.gz
+          mkdir -p /tmp/susfs
+          tar -xzf /tmp/susfs.tar.gz -C /tmp/susfs --strip-components=1
+          # Copy the four kernel-side files into the kernel tree
+          cp /tmp/susfs/kernel_patches/fs/susfs.c   ./fs/
+          cp /tmp/susfs/kernel_patches/fs/susfs.h   ./fs/
+          cp /tmp/susfs/kernel_patches/include/linux/susfs.h     ./include/linux/
+          cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h ./include/linux/
+          # Apply SUSFSâ†”KSUN glue patch into the integrated KSUN tree
+          if [[ -f /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]]; then
+            cp /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
+              ./KernelSU-Next/
+            ( cd ./KernelSU-Next && \
+              patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null && \
+              patch -p1 < 10_enable_susfs_for_ksu.patch ) || true
+            rm -f ./KernelSU-Next/10_enable_susfs_for_ksu.patch
+          fi
+          # KBapna's pre-bundled 50_add_susfs_in_kernel-4.14.patch vs upstream's
+          # differ; KBapna's working tree already has the hooks applied (verified
+          # in fs/Makefile). Drop KBapna's leftover so it stays consistent with
+          # whatever it has now (= we accept whatever is in tree).
           rm -f 50_add_susfs_in_kernel-4.14.patch || true
-          rm -rf /tmp/susfs
+          rm -rf /tmp/susfs /tmp/susfs.tar.gz
 
-      - name: Inspect and surface versions
+      - name: Verify versions
         id: inspect
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo v3.0.0)
+          # Read the SUSFS_VERSION macro out of the freshly copied susfs.h
+          SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' include/linux/susfs.h 2>/dev/null \
+                      | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
+          SUSFS_VER="${SUSFS_VER:-v1.5.5}"
           echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
-          echo "susfs_version=v1.5.9" >> "$GITHUB_OUTPUT"
+          echo "susfs_version=$SUSFS_VER" >> "$GITHUB_OUTPUT"
 
   build:
     needs: [host-prep, source-prep]
@@ -232,6 +264,9 @@ jobs:
         run: |
           set -euo pipefail
           SERIAL="${{ github.event.inputs.adb_serial }}"
+          # The ubuntu-latest runner does NOT have ADB access to your device.
+          # This job exists as a placeholder for a self-hosted runner.
+          # On your LAN, trigger the same workflow on a runner that has ADB.
           echo "NOTE: ADB pull requires a self-hosted Linux runner on the same LAN as the device."
           echo "Current runner: ${{ runner.name }} (${{ runner.os }})"
           exit 0

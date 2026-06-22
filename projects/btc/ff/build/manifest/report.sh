@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -euo pipefail
 # report.sh  ->  build/manifest/MANIFEST.json
 # Reads the kernel .config produced by "make defconfig" + "make prepare" in the
@@ -31,12 +31,21 @@ if [[ -d "$SRC/KernelSU-Next" ]]; then
   KSU_TAG=$(git -C "$SRC/KernelSU-Next" describe --tags --always 2>/dev/null || echo "v3.0.0")
 fi
 
+# Prefer the version embedded in the freshly copied include/linux/susfs.h;
+# fall back to the env var passed from CI, then to a harmless default.
+SUSFS_VER="${SUSFS_SOURCE_VERSION:-}"
+if [[ -z "$SUSFS_VER" && -f "$SRC/include/linux/susfs.h" ]]; then
+  SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' "$SRC/include/linux/susfs.h" \
+              | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
+fi
+SUSFS_VER="${SUSFS_VER:-unknown}"
+
 mkdir -p "$SRC/build/manifest"
 
-python3 - "$CONFIG_FILE" "$SRC" "$KSU_TAG" "$TOOLCHAIN_SHA" <<'PY'
+python3 - "$CONFIG_FILE" "$SRC" "$KSU_TAG" "$TOOLCHAIN_SHA" "$SUSFS_VER" <<'PY'
 import sys, json, re, datetime, pathlib
 
-config_path, src_root, ksu_tag, toolchain_sha = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3], sys.argv[4]
+config_path, src_root, ksu_tag, toolchain_sha, susfs_ver = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5]
 txt = ""
 if config_path and pathlib.Path(config_path).exists():
     txt = pathlib.Path(config_path).read_text(errors="replace")
@@ -49,11 +58,11 @@ manifest = {
     "kernel_source": src_root.name,
     "built_at": datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
     "ksu_source_tag": ksu_tag or "v3.0.0",
-    "susfs_version": "v1.5.9",
+    "susfs_version": susfs_ver,
     "toolchain_sha": toolchain_sha or "unknown",
     "susfs_flags_count": enabled,
     "susfs_flags": {k: "y" for k in flags},
-    "uname_r_pattern": "4.14.356-Unholy_V2.3-KSUNV3.0.0_SUSFSV1.5.9*",
+    "uname_r_pattern": "4.14.356-Unholy_V2.3-KSUNV3.0.0_SUSFSV1.5.5*",
 }
 
 out = src_root / "build" / "manifest" / "MANIFEST.json"
