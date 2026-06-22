@@ -1,0 +1,223 @@
+name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.9
+
+on:
+  workflow_dispatch:
+    inputs:
+      adb_serial:
+        description: 'ADB serial of the device (e.g. 5b389e4c)'
+        required: true
+        type: string
+      upload_target:
+        description: 'Where to upload artifacts after build'
+        required: false
+        default: 'direct'
+        type: choice
+        options:
+          - direct
+          - gdrive
+
+env:
+  PROJECT_ROOT: projects/btc/ff
+
+jobs:
+  host-prep:
+    runs-on: ubuntu-latest
+    outputs:
+      toolchain_sha: ${{ steps.tool.outputs.sha256 }}
+    steps:
+      - name: Checkout (monorepo root)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fetch Android clang r416183b
+        id: tool
+        run: |
+          set -euo pipefail
+          URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r416183b.tar.gz"
+          mkdir -p "$PROJECT_ROOT/build/toolchain"
+          curl -fL --retry 5 --retry-delay 5 --retry-max-time 300 "$URL" -o clang.tar.gz
+          sha256sum clang.tar.gz | cut -d' ' -f1 > "$PROJECT_ROOT/toolchain.sha256"
+          echo "sha256=$(cat "$PROJECT_ROOT/toolchain.sha256")" >> "$GITHUB_OUTPUT"
+          tar -xzf clang.tar.gz -C "$PROJECT_ROOT/build/toolchain"
+          rm -f clang.tar.gz
+
+      - name: Cache toolchain (keyed on SHA)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_ROOT }}/build/toolchain
+          key: toolchain-${{ steps.tool.outputs.sha256 }}
+          restore-keys: toolchain-
+
+      - name: Install host build deps
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            git rsync python3 python3-venv \
+            libelf-dev libssl-dev liblz4-tool device-tree-compiler \
+            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
+            cpio lz4 zip unzip bc
+          mkdir -p "$PROJECT_ROOT/build/bin"
+          curl -fL --retry 3 \
+            https://github.com/kaniqq7/mkbootimg-linux/releases/download/mkbootimg/mkbootimg \
+            -o "$PROJECT_ROOT/build/bin/mkbootimg"
+          curl -fL --retry 3 \
+            https://github.com/kaniqq7/mkbootimg-linux/releases/download/mkbootimg/unmkbootimg \
+            -o "$PROJECT_ROOT/build/bin/unmkbootimg"
+          chmod +x "$PROJECT_ROOT/build/bin/mkbootimg" "$PROJECT_ROOT/build/bin/unmkbootimg"
+
+  source-prep:
+    needs: host-prep
+    runs-on: ubuntu-latest
+    outputs:
+      ksud_version: ${{ steps.inspect.outputs.ksud_version }}
+      susfs_version: ${{ steps.inspect.outputs.susfs_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Restore cached toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_ROOT }}/build/toolchain
+          key: toolchain-${{ needs.host-prep.outputs.toolchain_sha }}
+          restore-keys: toolchain-
+
+      - name: Fetch KBapna base at v2.2_Unholy_SUSFS
+        run: |
+          set -euo pipefail
+          mkdir -p "$PROJECT_ROOT/build/sources"
+          git clone --filter=blob:none --branch v2.2_Unholy_SUSFS \
+            https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel \
+            "$PROJECT_ROOT/build/sources/KBapna"
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          git submodule update --init --recursive --depth 1 || true
+
+      - name: Overlay rifsxd KernelSU-Next v3.0.0
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          git clone --depth 1 --branch v3.0.0 \
+            https://github.com/KernelSU-Next/KernelSU-Next /tmp/next
+          rsync -a --delete /tmp/next/KernelSU-Next/ ./KernelSU-Next/
+          rm -rf /tmp/next
+
+      - name: Overlay SUSFS v1.5.9 (Non-GKI)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          git clone --depth 1 https://github.com/sidex15/susfs4ksu-module /tmp/susfs
+          mkdir -p fs include/linux
+          cp /tmp/susfs/fs/susfs.c /tmp/susfs/fs/susfs.h ./fs/
+          cp /tmp/susfs/include/linux/susfs.h /tmp/susfs/include/linux/susfs_def.h ./include/linux/
+          rm -f 50_add_susfs_in_kernel-4.14.patch || true
+          rm -rf /tmp/susfs
+
+      - name: Inspect and surface versions
+        id: inspect
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo v3.0.0)
+          echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
+          echo "susfs_version=v1.5.9" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [host-prep, source-prep]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Restore cached toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_ROOT }}/build/toolchain
+          key: toolchain-${{ needs.host-prep.outputs.toolchain_sha }}
+          restore-keys: toolchain-
+
+      - name: Export build environment + SUSFS fragment
+        run: |
+          set -euo pipefail
+          {
+            echo "PATH=$PWD/$PROJECT_ROOT/build/toolchain/bin:$PWD/$PROJECT_ROOT/build/bin:$PATH"
+            echo "ARCH=arm64"
+            echo "SUBARCH=arm64"
+            echo "CROSS_COMPILE=aarch64-linux-gnu-"
+            echo "CC=clang"
+            echo "LD=ld.lld"
+            echo "CLANG_TRIPLE=aarch64-linux-gnu-"
+          } >> "$GITHUB_ENV"
+          cat "$PROJECT_ROOT/build/config/phoenix_v2.3.fragment" \
+            >> "$PROJECT_ROOT/build/sources/KBapna/arch/arm64/configs/vendor/phoenix_defconfig"
+
+      - name: make defconfig
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        run: make ARCH=arm64 vendor/phoenix_defconfig
+
+      - name: make prepare
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        run: make ARCH=arm64 prepare
+
+      - name: Compile kernel + dtbs
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        run: |
+          set -euo pipefail
+          make -j"$(nproc)" ARCH=arm64 \
+            LLVM=1 LLVM_IAS=1 \
+            Image.gz-dtb dtbs \
+            |& tee build/kernel-build.log
+
+      - name: Extract embedded kernel config
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        run: |
+          set -euo pipefail
+          mkdir -p build/out
+          scripts/extract-ikconfig.sh arch/arm64/boot/Image.gz-dtb \
+            > build/out/embedded.config || true
+
+      - name: Run manifest scan
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        env:
+          KSU_SOURCE_TAG: ${{ needs.source-prep.outputs.ksud_version }}
+          SUSFS_SOURCE_VERSION: ${{ needs.source-prep.outputs.susfs_version }}
+        run: bash "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/manifest/report.sh" "$PWD"
+
+      - name: Upload kernel image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-image-${{ github.run_number }}
+          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb
+          retention-days: 30
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build-log-${{ github.run_number }}
+          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/build/kernel-build.log
+          retention-days: 14
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ github.run_number }}
+          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/build/manifest/MANIFEST.json
+          retention-days: 30
+
+  adb-pull:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.upload_target == 'gdrive' }}
+    steps:
+      - name: Wait for ADB connectivity
+        run: |
+          set -euo pipefail
+          SERIAL="${{ github.event.inputs.adb_serial }}"
+          echo "NOTE: ADB pull requires a self-hosted Linux runner on the same LAN as the device."
+          echo "Current runner: ${{ runner.name }} (${{ runner.os }})"
+          exit 0
