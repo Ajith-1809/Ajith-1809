@@ -215,12 +215,14 @@ jobs:
             echo "LD=ld.lld"
             echo "CLANG_TRIPLE=aarch64-linux-gnu-"
           } >> "$GITHUB_ENV"
-          cat "$PROJECT_ROOT/build/config/phoenix_v2.3.fragment" \
-            >> "$PROJECT_ROOT/build/sources/KBapna/arch/arm64/configs/vendor/phoenix_defconfig"
+          # KBapna's v2.2_Unholy_SUSFS branch lays defconfig at
+          # arch/arm64/configs/phoenix_defconfig (no vendor/ subdir).
+          cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/phoenix_v2.3.fragment" \
+            >> "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/KBapna/arch/arm64/configs/phoenix_defconfig"
 
       - name: make defconfig
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
-        run: make ARCH=arm64 vendor/phoenix_defconfig
+        run: make ARCH=arm64 phoenix_defconfig
 
       - name: make prepare
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
