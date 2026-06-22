@@ -1,0 +1,19 @@
+# Kernel build SITE (build/ itself is ignored; tracked inputs forced-added below).
+# forcing add is done via `git add -f` for design inputs in build/config/,
+# build/manifest/, and build/packaging/.
+build/toolchain/
+build/sources/
+build/out/
+clang-r416183b.tar.gz
+toolchain.sha256
+*.img
+MANIFEST.json
+# adb / magisk scratch (only used during flash)
+current_boot.img
+ramdisk.cpio
+dtb.img
+boot_backup_v2.2.img
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
