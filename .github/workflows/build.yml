@@ -144,31 +144,25 @@ jobs:
             head -3 "$MK"
           fi
 
-      - name: Tame -Werror in qcacld-3.0 staging wifi driver
+      - name: Drop -Werror from qcacld-3.0 staging wifi driver
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           # drivers/staging/qcacld-3.0 is Qualcomm's backported ath11k
-          # staging driver. Its Kbuild adds `-Werror` unconditionally.
-          # GCC 12+ promotes `enum/int` mixed-sign assignments to
-          # -Wenum-int-mismatch, then -Werror kills the build at
-          # wlan_hdd_cfg80211.c:1172 (enum qdf_hang_reason vs uint32_t).
+          # staging driver. Its Kbuild flags `-Werror` unconditionally
+          # through cppflags-y. That makes *any* newer-GCC warning fatal
+          # in this vendor code (first enum/int, then misleading-indent,
+          # then more to come).  Surgical per-class suppression (e.g.
+          # -Wno-enum-int-mismatch) is whack-a-mole.
           #
-          # Two fixes:
-          #   (a) qcacld-3.0 Kbuild itself — the actual -Werror lives in the
-          #       cppflags-y block, not an Android.mk.  Patch Kbuild.
-          #   (b) Defconfig already shipped `CONFIG_WERROR=n`, but the tree's
-          #       top-level Makefile ignores it when KBUILD_CFLAGS already
-          #       carries -Werror from subdir cppflags-y.  Neutralise the
-          #       enum-int-mismatch class so the rest of -Werror survives.
+          # KSU + SUSFS are already zero-warning.  The only -Werror
+          # casualties are qcacld-3.0's own staging code, which we don't
+          # own and don't maintain.  Drop -Werror there entirely.
           KBUILD=drivers/staging/qcacld-3.0/Kbuild
           test -f "$KBUILD"
-          # Always idempotent: sed only inserts the extra flag when absent.
-          sed -i 's/-Werror\b/-Werror -Wno-enum-int-mismatch/g' "$KBUILD"
-          grep -n -E 'Werror|Wno-enum|ccflags|cppflags' "$KBUILD" \
-            | grep -E 'Werror|Wno-enum' || true
-          echo "Patched Kbuild entry:"
-          grep -n 'Werror\|Wno-enum' "$KBUILD"
+          sed -i 's/ -Werror\b//g; s/\b-Werror\b//g' "$KBUILD"
+          echo "Remaining -Werror references in Kbuild:"
+          grep -n 'Werror' "$KBUILD" || true
 
       - name: Verify versions
         id: inspect
