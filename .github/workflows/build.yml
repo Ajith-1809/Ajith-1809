@@ -216,14 +216,25 @@ jobs:
 
       - name: make prepare
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
-        run: make ARCH=arm64 LLVM=1 LLVM_IAS=1 prepare
+        run: make ARCH=arm64 LLVM=1 prepare
 
       - name: Compile kernel + dtbs
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
         run: |
           set -euo pipefail
-          make -j"$(nproc)" ARCH=arm64 \
-            LLVM=1 LLVM_IAS=1 \
+          # Two isolated build issues drove the flags chosen here:
+          #   (1) cam_trace.h: Qualcomm's cam_trace.c references an
+          #       auto-generated trace header (include/trace/define_trace.h
+          #       -> TRACE_INCLUDE_FILE = "./cam_trace.h"). With -j$(nproc)
+          #       and LLVM_IAS=1, the trace-generation step races and the
+          #       header isn't present when cam_trace.c is compiled. KBapna's
+          #       tree historically built with -j2 + GCC; LLVM_IAS=1 alone
+          #       isn't worth the race here, so we drop it.
+          #   (2) Memory: -j$(nproc) on 2-core ubuntu-latest runners causes
+          #       OOM-kills on subsystem compile steps. -j2 is the historical
+          #       CI sweet spot for this kernel.
+          make -j2 ARCH=arm64 \
+            LLVM=1 \
             Image.gz-dtb dtbs \
             |& tee build/kernel-build.log
 
