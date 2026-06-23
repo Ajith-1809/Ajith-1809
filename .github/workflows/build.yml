@@ -144,6 +144,27 @@ jobs:
             head -3 "$MK"
           fi
 
+      - name: Tame -Werror in qcacld-3.0 staging wifi driver
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          # drivers/staging/qcacld-3.0 is Qualcomm's backported ath11k staging
+          # driver. Per its Kconfig the entire directory self-flags
+          # `ccflags-y += -Werror`. That makes the enum/int-mismatch in
+          # wlan_hdd_cfg80211.c (line 1172: enum qdf_hang_reason vs uint32_t
+          # parameter) fatal with GCC 12+. We cannot change that directory
+          # without a deeper fork; we CAN append an extra flag that neutralises
+          # just this class of warning. The match restores -Werror behaviour
+          # for every other diagnostic. Objective: build succeeds, ksu and
+          # susfs modules still emit zero warnings.
+          MK=drivers/staging/qcacld-3.0/Makefile
+          test -f "$MK"
+          if ! grep -q 'Wno-enum-int-mismatch' "$MK"; then
+            sed -i 's|-Werror|-Werror -Wno-enum-int-mismatch|g' "$MK"
+            echo "Patched $MK:"
+            grep -n 'ccflags\|Werror\|Wno-enum' "$MK"
+          fi
+
       - name: Verify versions
         id: inspect
         run: |
