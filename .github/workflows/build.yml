@@ -22,49 +22,7 @@ env:
   PROJECT_ROOT: projects/btc/ff
 
 jobs:
-  host-prep:
-    runs-on: ubuntu-latest
-    outputs:
-      toolchain_sha: ${{ steps.tool.outputs.sha256 }}
-    steps:
-      - name: Checkout (monorepo root)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Fetch Android clang r416183b
-        id: tool
-        run: |
-          set -euo pipefail
-          # Use crdroidandroid mirror: same revision (r416183b), branch 11.0
-          # Original https://android.googlesource.com/.../clang-r416183b.tar.gz
-          # returned 400 after Google's archive path changed.
-          URL="https://codeload.github.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r416183b/tar.gz/refs/heads/11.0"
-          EXPECTED="d4d1d97e1b49839ebeb77681c9faaa3cf163737c529121f1aa9bc4eae42e144f"
-          mkdir -p "$PROJECT_ROOT/build/toolchain"
-          curl -fL --retry 5 --retry-delay 5 --retry-max-time 900 "$URL" -o clang.tar.gz
-          GOT=$(sha256sum clang.tar.gz | cut -d' ' -f1)
-          if [[ "$GOT" != "$EXPECTED" ]]; then
-            echo "::error::sha256 mismatch: got $GOT, expected $EXPECTED" >&2
-            exit 1
-          fi
-          echo "$EXPECTED" > "$PROJECT_ROOT/toolchain.sha256"
-          echo "sha256=$EXPECTED" >> "$GITHUB_OUTPUT"
-          tar -xzf clang.tar.gz --strip-components=1 -C "$PROJECT_ROOT/build/toolchain"
-          rm -f clang.tar.gz
-          # Smoke check: the absolute Linux-x86 clang-12 ELF must exist
-          test -x "$PROJECT_ROOT/build/toolchain/bin/clang-12"
-          "$PROJECT_ROOT/build/toolchain/bin/clang-12" --version | head -1
-
-      - name: Cache toolchain (keyed on SHA)
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.PROJECT_ROOT }}/build/toolchain
-          key: toolchain-${{ steps.tool.outputs.sha256 }}
-          restore-keys: toolchain-
-
   build:
-    needs: host-prep
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -73,23 +31,14 @@ jobs:
           fetch-depth: 1
 
       - name: Install host build deps
-        # host-prep runs on a *different* runner than build, so apt packages
-        # installed there don't persist. Install them again here.
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             git rsync python3 python3-venv \
             libelf-dev libssl-dev liblz4-tool device-tree-compiler \
-            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             cpio lz4 zip unzip bc patch
-
-      - name: Restore cached toolchain
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.PROJECT_ROOT }}/build/toolchain
-          key: toolchain-${{ needs.host-prep.outputs.toolchain_sha }}
-          restore-keys: toolchain-
 
       - name: Fetch KBapna base at Unholy_KSUN+SUSFS (default branch)
         run: |
@@ -198,13 +147,9 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "PATH=$PWD/$PROJECT_ROOT/build/toolchain/bin:$PWD/$PROJECT_ROOT/build/bin:$PATH"
             echo "ARCH=arm64"
             echo "SUBARCH=arm64"
             echo "CROSS_COMPILE=aarch64-linux-gnu-"
-            echo "CC=clang"
-            echo "LD=ld.lld"
-            echo "CLANG_TRIPLE=aarch64-linux-gnu-"
           } >> "$GITHUB_ENV"
           # KBapna's defconfig is at arch/arm64/configs/phoenix_defconfig.
           cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/phoenix_v2.3.fragment" \
@@ -216,25 +161,21 @@ jobs:
 
       - name: make prepare
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
-        run: make ARCH=arm64 LLVM=1 prepare
+        run: make ARCH=arm64 prepare
 
       - name: Compile kernel + dtbs
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
         run: |
           set -euo pipefail
-          # Two isolated build issues drove the flags chosen here:
-          #   (1) cam_trace.h: Qualcomm's cam_trace.c references an
-          #       auto-generated trace header (include/trace/define_trace.h
-          #       -> TRACE_INCLUDE_FILE = "./cam_trace.h"). With -j$(nproc)
-          #       and LLVM_IAS=1, the trace-generation step races and the
-          #       header isn't present when cam_trace.c is compiled. KBapna's
-          #       tree historically built with -j2 + GCC; LLVM_IAS=1 alone
-          #       isn't worth the race here, so we drop it.
-          #   (2) Memory: -j$(nproc) on 2-core ubuntu-latest runners causes
-          #       OOM-kills on subsystem compile steps. -j2 is the historical
-          #       CI sweet spot for this kernel.
+          # Two notes on flags:
+          #   (1) GCC over clang: the upstream build uses gcc-aarch64-linux-gnu.
+          #       Clang (LLVM=1) trips Qualcomm's cam_trace.h auto-generated
+          #       header pipeline (the kernel's trace header machinery depends
+          #       on GCC-specific -fstack-protector detection ordering that
+          #       doesn't compose with LLVM=1). Sticking with GCC for stability.
+          #   (2) -j2: ubuntu-latest runners have 2 cores and KBapna's tree has
+          #       memory spikes during parallel drivers/ builds; -j2 avoids OOM.
           make -j2 ARCH=arm64 \
-            LLVM=1 \
             Image.gz-dtb dtbs \
             |& tee build/kernel-build.log
 
