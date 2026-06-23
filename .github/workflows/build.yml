@@ -126,6 +126,24 @@ jobs:
           find . -name '*.orig' -type f -delete 2>/dev/null || true
           rm -rf /tmp/susfs /tmp/susfs.tar.gz
 
+      - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          MK=drivers/media/platform/msm/camera/cam_utils/Makefile
+          test -f "$MK"
+          # cam_trace.c does `#define CREATE_TRACE_POINTS` and `#include "cam_trace.h"`.
+          # At compile time, define_trace.h emits a quoted `#include "./cam_trace.h"`,
+          # which gcc resolves relative to include/trace/ — and that path is NOT on -I.
+          # cam_utils/Makefile lists -I flags for cam_core/ cam_req_mgr/ cam_smmu/, but
+          # not for cam_utils/ itself. Add it before any existing ccflags-y line so the
+          # the relative include resolves to the directory holding cam_trace.h.
+          if ! grep -q 'cam_utils/$$' "$MK"; then
+            sed -i '1i ccflags-y += -Idrivers/media/platform/msm/camera/cam_utils/' "$MK"
+            echo "Patched $(wc -l < $MK) lines into $MK:"
+            head -3 "$MK"
+          fi
+
       - name: Verify versions
         id: inspect
         run: |
