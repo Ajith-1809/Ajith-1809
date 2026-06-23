@@ -148,22 +148,27 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # drivers/staging/qcacld-3.0 is Qualcomm's backported ath11k staging
-          # driver. Per its Kconfig the entire directory self-flags
-          # `ccflags-y += -Werror`. That makes the enum/int-mismatch in
-          # wlan_hdd_cfg80211.c (line 1172: enum qdf_hang_reason vs uint32_t
-          # parameter) fatal with GCC 12+. We cannot change that directory
-          # without a deeper fork; we CAN append an extra flag that neutralises
-          # just this class of warning. The match restores -Werror behaviour
-          # for every other diagnostic. Objective: build succeeds, ksu and
-          # susfs modules still emit zero warnings.
-          MK=drivers/staging/qcacld-3.0/Makefile
-          test -f "$MK"
-          if ! grep -q 'Wno-enum-int-mismatch' "$MK"; then
-            sed -i 's|-Werror|-Werror -Wno-enum-int-mismatch|g' "$MK"
-            echo "Patched $MK:"
-            grep -n 'ccflags\|Werror\|Wno-enum' "$MK"
-          fi
+          # drivers/staging/qcacld-3.0 is Qualcomm's backported ath11k
+          # staging driver. Its Kbuild adds `-Werror` unconditionally.
+          # GCC 12+ promotes `enum/int` mixed-sign assignments to
+          # -Wenum-int-mismatch, then -Werror kills the build at
+          # wlan_hdd_cfg80211.c:1172 (enum qdf_hang_reason vs uint32_t).
+          #
+          # Two fixes:
+          #   (a) qcacld-3.0 Kbuild itself — the actual -Werror lives in the
+          #       cppflags-y block, not an Android.mk.  Patch Kbuild.
+          #   (b) Defconfig already shipped `CONFIG_WERROR=n`, but the tree's
+          #       top-level Makefile ignores it when KBUILD_CFLAGS already
+          #       carries -Werror from subdir cppflags-y.  Neutralise the
+          #       enum-int-mismatch class so the rest of -Werror survives.
+          KBUILD=drivers/staging/qcacld-3.0/Kbuild
+          test -f "$KBUILD"
+          # Always idempotent: sed only inserts the extra flag when absent.
+          sed -i 's/-Werror\b/-Werror -Wno-enum-int-mismatch/g' "$KBUILD"
+          grep -n -E 'Werror|Wno-enum|ccflags|cppflags' "$KBUILD" \
+            | grep -E 'Werror|Wno-enum' || true
+          echo "Patched Kbuild entry:"
+          grep -n 'Werror\|Wno-enum' "$KBUILD"
 
       - name: Verify versions
         id: inspect
