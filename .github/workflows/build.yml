@@ -1,6 +1,6 @@
-﻿# Build Phoenix KSUN v3.0.0 / SUSFS v1.5.5
+# Build Phoenix KSUN v3.0.0 / SUSFS v1.5.5
 
-name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.9
+name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.5
 
 on:
   workflow_dispatch:
@@ -72,17 +72,10 @@ jobs:
             libelf-dev libssl-dev liblz4-tool device-tree-compiler \
             binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
             cpio lz4 zip unzip bc patch
-          # mkbootimg/unmkbootimg intentionally NOT pulled here. The CI emits
-          # Image.gz-dtb only; boot.img repack happens on the operator's host
-          # via magiskboot (release-checklist Â§F). Downloading remote mkbootimg
-          # binaries proved unreliable because mirrors are being archived.
 
-  source-prep:
+  build:
     needs: host-prep
     runs-on: ubuntu-latest
-    outputs:
-      ksud_version: ${{ steps.inspect.outputs.ksud_version }}
-      susfs_version: ${{ steps.inspect.outputs.susfs_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,19 +93,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$PROJECT_ROOT/build/sources"
-          # KBapna's repo default branch is Unholy_KSUN+SUSFS (verified via
-          # `GET /branches` returning just three: Unholy_KSUN+SUSFS,
-          # Unholy_KSUN, Unholy). The earlier 'v2.2_Unholy_SUSFS' name does
-          # not exist on this fork; clone succeeds but produces an empty
-          # tree -> no phoenix_defconfig -> build fails. Pin to the default
-          # branch and phoenix_defconfig will be present at
-          # arch/arm64/configs/phoenix_defconfig.
+          # KBapna/Unholy_Phoenix_Redmi_K30_Kernel has only three branches
+          # (verified via API): Unholy_KSUN+SUSFS (default), Unholy_KSUN,
+          # Unholy. The earlier 'v2.2_Unholy_SUSFS' name does not exist on
+          # this fork. Use the default branch and phoenix_defconfig will be
+          # present at arch/arm64/configs/phoenix_defconfig.
           git clone --filter=blob:none --branch Unholy_KSUN+SUSFS \
             https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel \
             "$PROJECT_ROOT/build/sources/KBapna"
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # Sanity-check the working tree actually has the defconfig; if not,
-          # surface a clear error here instead of failing 4 minutes later.
           test -f arch/arm64/configs/phoenix_defconfig || {
             echo "::error::kbapna clone is missing arch/arm64/configs/phoenix_defconfig"
             git log -1 --oneline
@@ -145,9 +134,9 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           # The 4.14 NON-GKI branch is the only one that ships patches KBapna's
-          # v2.2 tree expects. v1.5.5 is the same version the device already
-          # runs; we are rebuilding with current KSUN + same SUSFS so the
-          # userspace ksud (v3.2.0) stays ABI-stable.
+          # tree expects. v1.5.5 is the same version the device already runs;
+          # we are rebuilding with current KSUN + same SUSFS so the userspace
+          # ksud (v3.2.0) stays ABI-stable.
           curl -fL --retry 3 --retry-max-time 120 \
             "https://gitlab.com/simonpunk/susfs4ksu/-/archive/kernel-4.14/susfs4ksu-kernel-4.14.tar.gz" \
             -o /tmp/susfs.tar.gz
@@ -155,16 +144,15 @@ jobs:
           tar -xzf /tmp/susfs.tar.gz -C /tmp/susfs --strip-components=1
           # Verified via GitLab REST that kernel-4.14 path layout is:
           #   kernel_patches/fs/susfs.c            (and sus_su.c, no .h)
-          #   kernel_patches/fs/50_add_susfs_in_kernel-4.14.patch
+          #   kernel_patches/50_add_susfs_in_kernel-4.14.patch (1355 lines, 21 files)
           #   kernel_patches/include/linux/susfs.h   (and susfs_def.h, sus_su.h)
           #   kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
-          # So the kernel-tree copy plan is C source files -> fs/, headers -> include/linux/.
           cp /tmp/susfs/kernel_patches/fs/susfs.c                       ./fs/
           cp /tmp/susfs/kernel_patches/fs/sus_su.c                      ./fs/
           cp /tmp/susfs/kernel_patches/include/linux/susfs.h            ./include/linux/
           cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h        ./include/linux/
           cp /tmp/susfs/kernel_patches/include/linux/sus_su.h           ./include/linux/
-          # Apply SUSFSâ†”KSUN glue patch into the integrated KSUN tree
+          # Apply SUSFS<->KSUN glue patch into the integrated KSUN tree.
           if [[ -f /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]]; then
             cp /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
               ./KernelSU-Next/
@@ -182,11 +170,8 @@ jobs:
           cp /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
           patch --forward -p1 -d . < 50_add_susfs_in_kernel-4.14.upstream.patch || \
             echo "WARN: kernel-side SUSFS patch was not fully applicable; tree may have prior SUSFS diff."
-          # Drop the upstream patch + any .orig backups so defconfig/prepare step
-          # never sees them as inputs in arch/arm64 configs.
+          # Drop the upstream patch + any .orig backups.
           rm -f 50_add_susfs_in_kernel-4.14.upstream.patch
-          # git would normally purge .orig; we don't have a git checkout here
-          # (the runner uses --filter=blob:none), so just rm them directly.
           find . -name '*.orig' -type f -delete 2>/dev/null || true
           rm -rf /tmp/susfs /tmp/susfs.tar.gz
 
@@ -202,22 +187,10 @@ jobs:
           SUSFS_VER="${SUSFS_VER:-v1.5.5}"
           echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
           echo "susfs_version=$SUSFS_VER" >> "$GITHUB_OUTPUT"
-
-  build:
-    needs: [host-prep, source-prep]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Restore cached toolchain
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.PROJECT_ROOT }}/build/toolchain
-          key: toolchain-${{ needs.host-prep.outputs.toolchain_sha }}
-          restore-keys: toolchain-
+          # Truncate run duration estimates: ksud overlay+clone of KBapna can
+          # add up. Surface the resolved versions to the runner log so the
+          # build log records them even if the manifest writer fails later.
+          echo "Resolved: ksu_tag=$KSU_TAG susfs_version=$SUSFS_VER"
 
       - name: Export build environment + SUSFS fragment
         run: |
@@ -231,8 +204,7 @@ jobs:
             echo "LD=ld.lld"
             echo "CLANG_TRIPLE=aarch64-linux-gnu-"
           } >> "$GITHUB_ENV"
-          # KBapna's v2.2_Unholy_SUSFS branch lays defconfig at
-          # arch/arm64/configs/phoenix_defconfig (no vendor/ subdir).
+          # KBapna's defconfig is at arch/arm64/configs/phoenix_defconfig.
           cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/phoenix_v2.3.fragment" \
             >> "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/KBapna/arch/arm64/configs/phoenix_defconfig"
 
@@ -264,8 +236,8 @@ jobs:
       - name: Run manifest scan
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
         env:
-          KSU_SOURCE_TAG: ${{ needs.source-prep.outputs.ksud_version }}
-          SUSFS_SOURCE_VERSION: ${{ needs.source-prep.outputs.susfs_version }}
+          KSU_SOURCE_TAG: ${{ steps.inspect.outputs.ksud_version }}
+          SUSFS_SOURCE_VERSION: ${{ steps.inspect.outputs.susfs_version }}
         run: bash "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/manifest/report.sh" "$PWD"
 
       - name: Upload kernel image
