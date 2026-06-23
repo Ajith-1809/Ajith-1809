@@ -63,16 +63,6 @@ jobs:
           key: toolchain-${{ steps.tool.outputs.sha256 }}
           restore-keys: toolchain-
 
-      - name: Install host build deps
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            git rsync python3 python3-venv \
-            libelf-dev libssl-dev liblz4-tool device-tree-compiler \
-            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
-            cpio lz4 zip unzip bc patch
-
   build:
     needs: host-prep
     runs-on: ubuntu-latest
@@ -81,6 +71,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - name: Install host build deps
+        # host-prep runs on a *different* runner than build, so apt packages
+        # installed there don't persist. Install them again here.
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            git rsync python3 python3-venv \
+            libelf-dev libssl-dev liblz4-tool device-tree-compiler \
+            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
+            cpio lz4 zip unzip bc patch
 
       - name: Restore cached toolchain
         uses: actions/cache@v4
@@ -214,7 +216,7 @@ jobs:
 
       - name: make prepare
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
-        run: make ARCH=arm64 prepare
+        run: make ARCH=arm64 LLVM=1 LLVM_IAS=1 prepare
 
       - name: Compile kernel + dtbs
         working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
