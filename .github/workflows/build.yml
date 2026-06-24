@@ -1,6 +1,6 @@
-# Build Phoenix KSUN v3.0.0 / SUSFS v1.5.5
+# Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.1
 
-name: Build Phoenix KSUN v3.0.0 / SUSFS v1.5.5
+name: Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.1
 
 on:
   workflow_dispatch:
@@ -74,29 +74,26 @@ jobs:
             exit 1
           }
 
-      - name: Overlay KernelSU-Next v3.0.0 via upstream setup.sh
+      - name: Overlay KernelSU-Next v3.2.0-legacy via upstream setup.sh
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # Clone KSUN v3.0.0 into the kernel tree. The upstream setup.sh
-          # handles non-GKI kernel 4.14 trees but KSUN v3.0.0 source files
-          # reference APIs (TWA_RESUME, strncpy_from_user_nofault, pgtable.h)
-          # that were added in kernel 5.3+ / 5.9+. We apply a compat layer
-          # in the next step to backport those APIs.
           if [[ -d KernelSU-Next ]]; then
             rm -rf KernelSU-Next
           fi
+          # v3.2.0-legacy is the latest tag supporting non-GKI kernels (4.14+).
+          # The regular v3.2.0 only supports GKI (5.10+).
           curl -fsSL \
-            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.0.0/kernel/setup.sh" \
+            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.2.0-legacy/kernel/setup.sh" \
             -o /tmp/ksun-setup.sh
-          bash /tmp/ksun-setup.sh v3.0.0
+          bash /tmp/ksun-setup.sh v3.2.0-legacy
           rm -f /tmp/ksun-setup.sh
 
-      - name: Backport kernel 4.14 compat layer for KSUN v3.0.0 APIs
+      - name: Backport kernel 4.14 compat layer for KSUN v3.2.0-legacy APIs
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== Applying KSUN v3.0.0 kernel 4.14 compatibility layer ==="
+          echo "=== Applying KSUN v3.2.0-legacy kernel 4.14 compatibility layer ==="
           # 1. Copy the compat header into drivers/kernelsu/
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat.h" \
             drivers/kernelsu/ksu_compat.h
@@ -112,24 +109,25 @@ jobs:
           fi
           # 3. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat_pgtable.h" \
-            include/linux/pgtable.h
+            include/linux/pgtable.h 2>/dev/null || touch include/linux/pgtable.h
           echo "Created include/linux/pgtable.h -> asm/pgtable.h alias"
-          # 4. Verify the compat layer covers all known missing symbols
-          echo "=== Checking for remaining 4.14-incompatible references ==="
+          # 4. Scan for remaining incompatibilities
           DK="drivers/kernelsu"
+          echo "=== Scanning for remaining 4.14-incompatible references ==="
           for f in "$DK"/*.c "$DK"/*.h; do
             [ -f "$f" ] || continue
             issues=""
             grep -q 'linux/refcount.h' "$f" 2>/dev/null && issues="$issues refcount.h"
             grep -q 'linux/xxhash.h' "$f" 2>/dev/null && issues="$issues xxhash.h"
             grep -q 'linux/sched/mm.h' "$f" 2>/dev/null && issues="$issues sched/mm.h"
+            grep -q 'linux/pgtable.h' "$f" 2>/dev/null && issues="$issues pgtable.h"
             if [ -n "$issues" ]; then
               echo "  UNRESOLVED in $(basename $f):$issues"
             fi
           done
           echo "=== Compat layer applied ==="
 
-      - name: Overlay SUSFS v1.5.5 (kernel-4.14 branch) into kernel tree
+      - name: Overlay SUSFS v1.5.1 (kernel-4.14 branch) into kernel tree
         run: |
           set -uo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
@@ -242,11 +240,11 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo "v3.0.0")
+          KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo "v3.2.0-legacy")
           # Read the SUSFS_VERSION macro out of the freshly copied susfs.h
           SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' include/linux/susfs.h 2>/dev/null \
                       | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
-          SUSFS_VER="${SUSFS_VER:-v1.5.5}"
+          SUSFS_VER="${SUSFS_VER:-v1.5.1}"
           echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
           echo "susfs_version=$SUSFS_VER" >> "$GITHUB_OUTPUT"
           # Truncate run duration estimates: ksud overlay+clone of KBapna can
@@ -313,7 +311,7 @@ jobs:
           KERNEL_SRC="$PROJECT_ROOT/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb"
           AK3_SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3"
           OUT_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/out"
-          ZIP_NAME="Unholy_Phoenix_KSU-Next_v3.0.0_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip"
+          ZIP_NAME="Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.1-phoenix-${{ github.run_number }}.zip"
           test -f "$KERNEL_SRC" || { echo "::error::Image.gz-dtb not found at $KERNEL_SRC"; exit 1; }
           test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
           mkdir -p "$OUT_DIR"
@@ -355,7 +353,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: anykernel3-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSU-Next_v3.0.0_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip
+          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.1-phoenix-${{ github.run_number }}.zip
           retention-days: 30
 
   adb-pull:
