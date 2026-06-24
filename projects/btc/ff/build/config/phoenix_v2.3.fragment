@@ -17,6 +17,7 @@ CONFIG_KSU_SUSFS_ENABLE_LOG=y
 CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
 CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
 CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+CONFIG_KSU_SUSFS_SUS_MAP=y
 CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
 # Vendor/MDM code (qcacld-3.0 etc) hits warnings new backport GCC promotes
 # to errors via -Wenum-int-mismatch/Wenum-compare etc. Turn off the global

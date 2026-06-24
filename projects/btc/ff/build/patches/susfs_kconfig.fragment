@@ -63,4 +63,8 @@ config KSU_SUSFS_OPEN_REDIRECT
         bool "Open redirect support (experimental)"
         default y
 
+config KSU_SUSFS_SUS_MAP
+        bool "Enable to hide paths from /proc/pid/maps"
+        default y
+
 endmenu

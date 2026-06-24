@@ -127,13 +127,50 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Inject SUSFS Kconfig into KSUN tree (KBapna base ships SUSFS v1.5.5)
+      - name: Backport SUSFS v2.2.0 from GKI source to kernel 4.14
         run: |
           set -uo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== KBapna tree already has SUSFS v1.5.5 integrated — skipping overlay ==="
-          # Only ensure SUSFS Kconfig options are visible to the new KSUN Kconfig
-          # (KSUN setup.sh may have replaced or regenerated the Kconfig file)
+          echo "=== Downloading SUSFS v2.2.0 GKI source ==="
+          curl -fL --retry 3 --retry-max-time 120 \
+            "https://gitlab.com/simonpunk/susfs4ksu/-/archive/gki-android14-5.15/susfs4ksu-gki-android14-5.15.tar.gz" \
+            -o /tmp/susfs_v2.tar.gz || { echo "FAIL: download failed"; exit 1; }
+          mkdir -p /tmp/susfs_v2
+          tar -xzf /tmp/susfs_v2.tar.gz -C /tmp/susfs_v2 --strip-components=1
+          echo "=== Copying v2.2.0 source files over KBapna base ==="
+          cp -v /tmp/susfs_v2/kernel_patches/fs/susfs.c  ./fs/ || { echo "FAIL: susfs.c not found"; exit 1; }
+          cp -v /tmp/susfs_v2/kernel_patches/include/linux/susfs.h     ./include/linux/ || { echo "FAIL: susfs.h"; exit 1; }
+          cp -v /tmp/susfs_v2/kernel_patches/include/linux/susfs_def.h ./include/linux/ || { echo "FAIL: susfs_def.h"; exit 1; }
+          echo "=== Applying 4.14 compatibility fixes to v2.2.0 source ==="
+          # Fix KSTAT_SPOOF_CTIME_TV_SEC typo: (1 < 8) -> (1 << 8)
+          sed -i 's/(1 < 8)/(1 << 8)/g' ./include/linux/susfs.h
+          # Remove 'static' from fsnotify handler so the compat header can forward-declare it
+          sed -i 's/^static int susfs_handle_sdcard_inode_event(/int susfs_handle_sdcard_inode_event(/' ./fs/susfs.c
+          # Change handle_inode_event -> handle_event with compat wrapper
+          sed -i 's/\.handle_inode_event = susfs_handle_sdcard_inode_event,/.handle_event = __susfs_handle_event_compat,/' ./fs/susfs.c
+          # Force-include the backport compat header into susfs.c build
+          if ! grep -q 'susfs_v2_backport_compat.h' ./fs/Makefile; then
+            sed -i '1i ccflags-y += -include $(src)/susfs_v2_backport_compat.h' ./fs/Makefile
+            echo "Added -include susfs_v2_backport_compat.h to fs/Makefile"
+          fi
+          # Copy the compat header to fs/ so it's available at build time
+          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2_backport_compat.h" \
+            ./fs/susfs_v2_backport_compat.h
+          echo "=== Applying GKI kernel-side patch (skip already-applied hunks) ==="
+          if [ -f /tmp/susfs_v2/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch ]; then
+            cp /tmp/susfs_v2/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch \
+              ./50_add_susfs_in_kernel.patch
+            # --forward skips already-applied hunks (from KBapna's v1.5.5 base)
+            # --reject writes rejected hunks to .rej files for inspection
+            patch --forward -p1 -d . < 50_add_susfs_in_kernel.patch || \
+              echo "WARN: some hunks were already applied or failed — see .rej files"
+            rm -f 50_add_susfs_in_kernel.patch
+          else
+            echo "WARN: kernel patch not found in tarball"
+          fi
+          # Clean up .orig/.rej debris
+          find . -name '*.orig' -o -name '*.rej' -type f -delete 2>/dev/null || true
+          # Ensure SUSFS Kconfig options are visible in the new KSUN Kconfig
           KSU_KCONFIG=""
           for kc in KernelSU-Next/kernel/Kconfig KernelSU/kernel/Kconfig KernelSU/Kconfig drivers/kernelsu/Kconfig; do
             if [ -f "$kc" ]; then
@@ -151,7 +188,8 @@ jobs:
           else
             echo "SUSFS Kconfig options already present — no action needed"
           fi
-          echo "=== SUSFS integration complete ==="
+          rm -rf /tmp/susfs_v2 /tmp/susfs_v2.tar.gz
+          echo "=== SUSFS v2.2.0 backport complete ==="
 
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |
