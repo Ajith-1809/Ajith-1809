@@ -1,6 +1,6 @@
-# Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.1
+# Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.5
 
-name: Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.1
+name: Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.5
 
 on:
   workflow_dispatch:
@@ -127,30 +127,13 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Overlay SUSFS v1.5.1 (kernel-4.14 branch) into kernel tree
+      - name: Inject SUSFS Kconfig into KSUN tree (KBapna base ships SUSFS v1.5.5)
         run: |
           set -uo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== Downloading SUSFS kernel-4.14 tarball ==="
-          curl -fL --retry 3 --retry-max-time 120 \
-            "https://gitlab.com/simonpunk/susfs4ksu/-/archive/kernel-4.14/susfs4ksu-kernel-4.14.tar.gz" \
-            -o /tmp/susfs.tar.gz || { echo "FAIL: download failed"; exit 1; }
-          mkdir -p /tmp/susfs
-          echo "=== Extracting tarball ==="
-          tar -xzf /tmp/susfs.tar.gz -C /tmp/susfs --strip-components=1 || {
-            echo "FAIL: tar extraction failed. Tarball contents:"
-            tar -tzf /tmp/susfs.tar.gz | head -20
-            exit 1
-          }
-          echo "=== Extracted files ==="
-          find /tmp/susfs -type f | head -30
-          echo "=== Copying SUSFS source files ==="
-          cp -v /tmp/susfs/kernel_patches/fs/susfs.c  ./fs/ 2>&1 || echo "WARN: susfs.c not found"
-          cp -v /tmp/susfs/kernel_patches/fs/sus_su.c ./fs/ 2>&1 || echo "WARN: sus_su.c not found"
-          cp -v /tmp/susfs/kernel_patches/include/linux/susfs.h     ./include/linux/ 2>&1 || echo "WARN: susfs.h not found"
-          cp -v /tmp/susfs/kernel_patches/include/linux/susfs_def.h ./include/linux/ 2>&1 || echo "WARN: susfs_def.h not found"
-          cp -v /tmp/susfs/kernel_patches/include/linux/sus_su.h    ./include/linux/ 2>&1 || echo "WARN: sus_su.h not found"
-          # Find KSUN Kconfig and inject SUSFS options
+          echo "=== KBapna tree already has SUSFS v1.5.5 integrated — skipping overlay ==="
+          # Only ensure SUSFS Kconfig options are visible to the new KSUN Kconfig
+          # (KSUN setup.sh may have replaced or regenerated the Kconfig file)
           KSU_KCONFIG=""
           for kc in KernelSU-Next/kernel/Kconfig KernelSU/kernel/Kconfig KernelSU/Kconfig drivers/kernelsu/Kconfig; do
             if [ -f "$kc" ]; then
@@ -161,44 +144,14 @@ jobs:
           done
           if [ -z "$KSU_KCONFIG" ]; then
             echo "WARN: no KSUN Kconfig found — SUSFS Kconfig options may be silently dropped"
-          fi
-          # Apply KSUN glue patch if it applies; otherwise inject Kconfig manually
-          KSUN_PATCH="/tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
-          if [ -f "$KSUN_PATCH" ] && [ -d KernelSU-Next ]; then
-            echo "=== Trying KSUN glue patch ==="
-            cp "$KSUN_PATCH" ./KernelSU-Next/
-            if ( cd ./KernelSU-Next && patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null 2>&1 ); then
-              echo "=== SUSFS KSUN patch applies cleanly ==="
-              ( cd ./KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch )
-            else
-              echo "=== KSUN patch DRY-RUN FAILED; injecting Kconfig ==="
-              if [ -n "$KSU_KCONFIG" ] && ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
-                cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
-                echo "Injected SUSFS Kconfig entries"
-              fi
-            fi
-            rm -f ./KernelSU-Next/10_enable_susfs_for_ksu.patch
+          elif ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
+            echo "=== Injecting SUSFS Kconfig into $KSU_KCONFIG ==="
+            cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
+            echo "Injected SUSFS Kconfig entries"
           else
-            echo "KSUN glue patch not applicable; injecting Kconfig if needed"
-            if [ -n "$KSU_KCONFIG" ] && ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
-              cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
-              echo "Injected SUSFS Kconfig entries"
-            fi
+            echo "SUSFS Kconfig options already present — no action needed"
           fi
-          # Apply the kernel-side 50_add_susfs patch
-          echo "=== Applying kernel-side SUSFS patch ==="
-          if [ -f /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ]; then
-            cp /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
-            patch --forward -p1 -d . < 50_add_susfs_in_kernel-4.14.upstream.patch || \
-              echo "WARN: kernel-side patch not fully applicable; tree may have prior SUSFS diff."
-            rm -f 50_add_susfs_in_kernel-4.14.upstream.patch
-          else
-            echo "WARN: 50_add_susfs_in_kernel-4.14.patch not found in tarball"
-          fi
-          # Cleanup
-          find . -name '*.orig' -type f -delete 2>/dev/null || true
-          rm -rf /tmp/susfs /tmp/susfs.tar.gz
-          echo "=== SUSFS overlay complete ==="
+          echo "=== SUSFS integration complete ==="
 
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |
@@ -244,7 +197,7 @@ jobs:
           # Read the SUSFS_VERSION macro out of the freshly copied susfs.h
           SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' include/linux/susfs.h 2>/dev/null \
                       | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
-          SUSFS_VER="${SUSFS_VER:-v1.5.1}"
+          SUSFS_VER="${SUSFS_VER:-v1.5.5}"
           echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
           echo "susfs_version=$SUSFS_VER" >> "$GITHUB_OUTPUT"
           # Truncate run duration estimates: ksud overlay+clone of KBapna can
@@ -311,7 +264,7 @@ jobs:
           KERNEL_SRC="$PROJECT_ROOT/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb"
           AK3_SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3"
           OUT_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/out"
-          ZIP_NAME="Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.1-phoenix-${{ github.run_number }}.zip"
+          ZIP_NAME="Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip"
           test -f "$KERNEL_SRC" || { echo "::error::Image.gz-dtb not found at $KERNEL_SRC"; exit 1; }
           test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
           mkdir -p "$OUT_DIR"
@@ -353,7 +306,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: anykernel3-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.1-phoenix-${{ github.run_number }}.zip
+          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip
           retention-days: 30
 
   adb-pull:

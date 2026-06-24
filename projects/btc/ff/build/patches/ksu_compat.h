@@ -49,14 +49,4 @@ strncpy_from_user_nofault(char *dst, const char __user *src, long count)
 }
 #endif
 
-/* ===== put_task_struct() availability =====
- * In 4.14 it's in <linux/sched/task.h>. If that header doesn't exist,
- * it's in <linux/sched.h> which we already include above.
- * This is just a safety check.
- */
-#ifndef put_task_struct
-/* fallback — should never trigger on 4.14 */
-#define put_task_struct(t)  do { if (atomic_dec_and_test(&(t)->usage)) __put_task_struct(t); } while (0)
-#endif
-
 #endif /* _KSU_COMPAT_H_ */
