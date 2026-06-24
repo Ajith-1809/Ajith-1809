@@ -156,17 +156,13 @@ jobs:
           # Copy the compat header to fs/ so it's available at build time
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2_backport_compat.h" \
             ./fs/susfs_v2_backport_compat.h
-          echo "=== Applying GKI kernel-side patch (skip already-applied hunks) ==="
-          if [ -f /tmp/susfs_v2/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch ]; then
-            cp /tmp/susfs_v2/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch \
-              ./50_add_susfs_in_kernel.patch
-            # --forward skips already-applied hunks (from KBapna's v1.5.5 base)
-            # --reject writes rejected hunks to .rej files for inspection
-            patch --forward -p1 -d . < 50_add_susfs_in_kernel.patch || \
-              echo "WARN: some hunks were already applied or failed — see .rej files"
-            rm -f 50_add_susfs_in_kernel.patch
-          else
-            echo "WARN: kernel patch not found in tarball"
+          # SKIP applying the GKI kernel patch — KBapna tree already has v1.5.5
+          # kernel-side hooks (exec.c, open.c, namei.c, stat.c, etc.) that call
+          # the same function names as v2.2.0. The GKI patch would add KSUN
+          # symbol references (ksu_su_compat_enabled, __ksu_is_allow_uid_for_current)
+          # that don't exist in the old tree and conflict. Just the replacement
+          # source files are sufficient — all v2.2.0 API entry points match the
+          # existing v1.5.5 hook calls.
           fi
           # Clean up .orig/.rej debris
           find . -name '*.orig' -o -name '*.rej' -type f -delete 2>/dev/null || true
