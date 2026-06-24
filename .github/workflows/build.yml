@@ -163,7 +163,6 @@ jobs:
           # that don't exist in the old tree and conflict. Just the replacement
           # source files are sufficient — all v2.2.0 API entry points match the
           # existing v1.5.5 hook calls.
-          fi
           # Clean up .orig/.rej debris
           find . -name '*.orig' -o -name '*.rej' -type f -delete 2>/dev/null || true
           # Ensure SUSFS Kconfig options are visible in the new KSUN Kconfig
