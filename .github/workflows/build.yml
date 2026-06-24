@@ -160,18 +160,18 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # Only strip -Werror from vendor Kbuild files, NOT from the top-level
-          # Makefile (which CONFIG_WERROR=n handles from .config).
-          # Known offenders with GCC 12+:
-          #   drivers/staging/qcacld-3.0/Kbuild  — Qualcomm backported wifi
-          for f in \
-            drivers/staging/qcacld-3.0/Kbuild \
-          ; do
-            if test -f "$f"; then
-              echo "=== $f ==="
-              sed -i 's/-Werror//g' "$f"
-            fi
-          done
+          # Only strip -Werror from vendor Kbuild/Makefile files, NOT from the
+          # top-level Makefile (which CONFIG_WERROR=n handles from .config).
+          # GCC 12+ promotes -Wmaybe-uninitialized and -Wenum-int-mismatch to
+          # errors in out-of-tree Qualcomm vendor drivers. Known offenders:
+          #   drivers/staging/qcacld-3.0/Kbuild          — backported wifi
+          #   techpack/audio/asoc/codecs/tfa98xx/Makefile — audio codec
+          echo "=== Stripping -Werror from vendor Makefile/Kbuild files ==="
+          find drivers/staging techpack -type f \( -name 'Makefile' -o -name 'Kbuild' \) \
+            -exec grep -l '\-Werror' {} \; \
+            -exec echo "  Stripping: {}" \; \
+            -exec sed -i 's/-Werror//g' {} \;
+          echo "=== Done ==="
 
       - name: Verify versions
         id: inspect
