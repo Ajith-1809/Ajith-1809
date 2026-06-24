@@ -94,45 +94,46 @@ jobs:
 
       - name: Overlay SUSFS v1.5.5 (kernel-4.14 branch) into kernel tree
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           # The 4.14 NON-GKI branch is the only one that ships patches KBapna's
-          # tree expects. v1.5.5 is the same version the device already runs;
-          # we are rebuilding with current KSUN + same SUSFS so the userspace
-          # ksud (v3.2.0) stays ABI-stable.
+          # tree expects. v1.5.5 is the same version the device already runs.
+          echo "=== Downloading SUSFS kernel-4.14 tarball ==="
           curl -fL --retry 3 --retry-max-time 120 \
             "https://gitlab.com/simonpunk/susfs4ksu/-/archive/kernel-4.14/susfs4ksu-kernel-4.14.tar.gz" \
-            -o /tmp/susfs.tar.gz
+            -o /tmp/susfs.tar.gz || { echo "FAIL: download failed"; exit 1; }
           mkdir -p /tmp/susfs
-          tar -xzf /tmp/susfs.tar.gz -C /tmp/susfs --strip-components=1
-          # Verified via GitLab REST that kernel-4.14 path layout is:
-          #   kernel_patches/fs/susfs.c            (and sus_su.c, no .h)
-          #   kernel_patches/50_add_susfs_in_kernel-4.14.patch (1355 lines, 21 files)
-          #   kernel_patches/include/linux/susfs.h   (and susfs_def.h, sus_su.h)
-          #   kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
-          cp /tmp/susfs/kernel_patches/fs/susfs.c                       ./fs/
-          cp /tmp/susfs/kernel_patches/fs/sus_su.c                      ./fs/
-          cp /tmp/susfs/kernel_patches/include/linux/susfs.h            ./include/linux/
-          cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h        ./include/linux/
-          cp /tmp/susfs/kernel_patches/include/linux/sus_su.h           ./include/linux/
-          # Apply SUSFS <-> KSUN glue patch into the integrated KSUN tree.
-          # This patch adds the CONFIG_KSU_SUSFS_* Kconfig menu and modifies
-          # core_hook.c, selinux/, allowlist.c, etc. to wire SUSFS into KSU-Next.
+          echo "=== Extracting tarball ==="
+          tar -xzf /tmp/susfs.tar.gz -C /tmp/susfs --strip-components=1 || {
+            echo "FAIL: tar extraction failed. Tarball contents:"
+            tar -tzf /tmp/susfs.tar.gz | head -20
+            exit 1
+          }
+          echo "=== Extracted files ==="
+          find /tmp/susfs -type f | head -30
+          echo "=== Copying SUSFS source files ==="
+          cp -v /tmp/susfs/kernel_patches/fs/susfs.c  ./fs/ 2>&1 || echo "WARN: susfs.c not found"
+          cp -v /tmp/susfs/kernel_patches/fs/sus_su.c ./fs/ 2>&1 || echo "WARN: sus_su.c not found"
+          cp -v /tmp/susfs/kernel_patches/include/linux/susfs.h     ./include/linux/ 2>&1 || echo "WARN: susfs.h not found"
+          cp -v /tmp/susfs/kernel_patches/include/linux/susfs_def.h ./include/linux/ 2>&1 || echo "WARN: susfs_def.h not found"
+          cp -v /tmp/susfs/kernel_patches/include/linux/sus_su.h    ./include/linux/ 2>&1 || echo "WARN: sus_su.h not found"
+          # Locate the KSUN Kconfig file
           KSU_KCONFIG="KernelSU-Next/kernel/Kconfig"
-          if [[ -f /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]]; then
-            cp /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
-              ./KernelSU-Next/
-            ( cd ./KernelSU-Next && \
-              patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null 2>&1 )
-            if [ $? -eq 0 ]; then
+          if [ ! -f "$KSU_KCONFIG" ]; then
+            echo "WARN: $KSU_KCONFIG not found; searching for alternate..."
+            find . -name Kconfig -path "*/KernelSU*" 2>/dev/null | head -5
+          fi
+          # Apply KSUN glue patch, or inject Kconfig manually
+          KSUN_PATCH="/tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+          if [ -f "$KSUN_PATCH" ]; then
+            echo "=== Found KSUN glue patch ==="
+            cp "$KSUN_PATCH" ./KernelSU-Next/
+            if ( cd ./KernelSU-Next && patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null 2>&1 ); then
               echo "=== SUSFS KSUN patch applies cleanly ==="
               ( cd ./KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch )
             else
-              echo "=== SUSFS KSUN patch dry-run FAILED; injecting Kconfig manually ==="
-              # The patch didn't apply (likely kernel tree differs from what patch expects).
-              # At minimum we MUST add the SUSFS Kconfig entries so the defconfig
-              # fragment's CONFIG_KSU_SUSFS_* options don't get silently dropped.
-              if grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG"; then
+              echo "=== SUSFS KSUN patch DRY-RUN FAILED; injecting Kconfig manually ==="
+              if grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
                 echo "SUSFS Kconfig already present, skipping injection."
               else
                 cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
@@ -140,20 +141,32 @@ jobs:
               fi
             fi
             rm -f ./KernelSU-Next/10_enable_susfs_for_ksu.patch
+          else
+            echo "WARN: KSUN glue patch not found at $KSUN_PATCH"
+            # Still inject Kconfig
+            if [ -f "$KSU_KCONFIG" ]; then
+              if grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
+                echo "SUSFS Kconfig already present."
+              else
+                cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
+                echo "Injected SUSFS Kconfig entries (patch not found)"
+              fi
+            fi
           fi
-          # Apply the upstream 50_add_susfs_in_kernel-4.14.patch into the tree
-          # (covers fs/dcache.c, fs/namei.c, fs/namespace.c, fs/proc/*.c,
-          # fs/stat.c, fs/statfs.c, kernel/kallsyms.c, kernel/sys.c, etc).
-          # KBapna's branch already has SOME of these hooks baked in (verified:
-          # fs/Makefile obj-y line + kernel/sys.c spoof_uname hook present).
-          # --forward makes 'patch' idempotent: it skips already-applied hunks.
-          cp /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
-          patch --forward -p1 -d . < 50_add_susfs_in_kernel-4.14.upstream.patch || \
-            echo "WARN: kernel-side SUSFS patch was not fully applicable; tree may have prior SUSFS diff."
-          # Drop the upstream patch + any .orig backups.
-          rm -f 50_add_susfs_in_kernel-4.14.upstream.patch
+          # Apply the kernel-side 50_add_susfs patch
+          echo "=== Applying kernel-side SUSFS patch ==="
+          if [ -f /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ]; then
+            cp /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-4.14.patch ./50_add_susfs_in_kernel-4.14.upstream.patch
+            patch --forward -p1 -d . < 50_add_susfs_in_kernel-4.14.upstream.patch || \
+              echo "WARN: kernel-side patch not fully applicable; tree may have prior SUSFS diff."
+            rm -f 50_add_susfs_in_kernel-4.14.upstream.patch
+          else
+            echo "WARN: 50_add_susfs_in_kernel-4.14.patch not found in tarball"
+          fi
+          # Cleanup
           find . -name '*.orig' -type f -delete 2>/dev/null || true
           rm -rf /tmp/susfs /tmp/susfs.tar.gz
+          echo "=== SUSFS overlay complete ==="
 
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |
@@ -233,10 +246,10 @@ jobs:
           set -euo pipefail
           # Two notes on flags:
           #   (1) GCC over clang: the upstream build uses gcc-aarch64-linux-gnu.
-          #       Clang (LLVM=1) trips Qualcomm's cam_trace.h auto-generated
+          #       Clang (LLM=1) trips Qualcomm's cam_trace.h auto-generated
           #       header pipeline (the kernel's trace header machinery depends
           #       on GCC-specific -fstack-protector detection ordering that
-          #       doesn't compose with LLVM=1). Sticking with GCC for stability.
+          #       doesn't compose with LLM=1). Sticking with GCC for stability.
           #   (2) -j2: ubuntu-latest runners have 2 cores and KBapna's tree has
           #       memory spikes during parallel drivers/ builds; -j2 avoids OOM.
           # Ensure build/ exists for tee log output
