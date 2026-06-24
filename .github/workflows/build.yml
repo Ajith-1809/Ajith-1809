@@ -115,13 +115,98 @@ jobs:
           cp /tmp/susfs/kernel_patches/include/linux/susfs.h            ./include/linux/
           cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h        ./include/linux/
           cp /tmp/susfs/kernel_patches/include/linux/sus_su.h           ./include/linux/
-          # Apply SUSFS<->KSUN glue patch into the integrated KSUN tree.
+          # Apply SUSFS <-> KSUN glue patch into the integrated KSUN tree.
+          # This patch adds the CONFIG_KSU_SUSFS_* Kconfig menu and modifies
+          # core_hook.c, selinux/, allowlist.c, etc. to wire SUSFS into KSU-Next.
+          KSU_KCONFIG="KernelSU-Next/kernel/Kconfig"
           if [[ -f /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]]; then
             cp /tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch \
               ./KernelSU-Next/
             ( cd ./KernelSU-Next && \
-              patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null && \
-              patch -p1 < 10_enable_susfs_for_ksu.patch ) || true
+              patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null 2>&1 )
+            if [ $? -eq 0 ]; then
+              echo "=== SUSFS KSUN patch applies cleanly ==="
+              ( cd ./KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch )
+            else
+              echo "=== SUSFS KSUN patch dry-run FAILED; injecting Kconfig manually ==="
+              # The patch didn't apply (likely kernel tree differs from what patch expects).
+              # At minimum we MUST add the SUSFS Kconfig entries so the defconfig
+              # fragment's CONFIG_KSU_SUSFS_* options don't get silently dropped.
+              if grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG"; then
+                echo "SUSFS Kconfig already present, skipping injection."
+              else
+                cat >> "$KSU_KCONFIG" << 'KCONFIG_EOF'
+
+        menu "KernelSU - SUSFS"
+
+        config KSU_SUSFS
+                bool "KernelSU addon - SUSFS"
+                depends on KSU
+                default y
+
+        config KSU_SUSFS_HAS_MAGIC_MOUNT
+                bool "Magic mount support indicator"
+                default y
+
+        config KSU_SUSFS_SUS_PATH
+                bool "Enable to hide suspicious path (NOT recommended)"
+                default y
+
+        config KSU_SUSFS_SUS_MOUNT
+                bool "Enable to hide suspicious mounts"
+                default y
+
+        config KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+                bool "Auto add sus ksu default mount"
+                depends on KSU_SUSFS_SUS_MOUNT
+                default y
+
+        config KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+                bool "Auto add sus bind mount"
+                depends on KSU_SUSFS_SUS_MOUNT
+                default y
+
+        config KSU_SUSFS_SUS_KSTAT
+                bool "Spoof kstat for files/dirs"
+                default y
+
+        config KSU_SUSFS_SUS_OVERLAYFS
+                bool "Auto spoof kstat for overlayfs"
+                default n
+
+        config KSU_SUSFS_TRY_UMOUNT
+                bool "Use ksu_try_umount"
+                default y
+
+        config KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
+                bool "Auto add bind mount to try_umount"
+                default y
+
+        config KSU_SUSFS_SPOOF_UNAME
+                bool "Spoof uname syscall"
+                default y
+
+        config KSU_SUSFS_ENABLE_LOG
+                bool "Enable logging for KernelSU SUSFS"
+                default y
+
+        config KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+                bool "Hide ksu and susfs symbols from /proc/kallsyms"
+                default y
+
+        config KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+                bool "Spoof cmdline or bootconfig"
+                default y
+
+        config KSU_SUSFS_OPEN_REDIRECT
+                bool "Open redirect support (experimental)"
+                default y
+
+        endmenu
+KCONFIG_EOF
+                echo "Injected SUSFS Kconfig entries into $KSU_KCONFIG"
+              fi
+            fi
             rm -f ./KernelSU-Next/10_enable_susfs_for_ksu.patch
           fi
           # Apply the upstream 50_add_susfs_in_kernel-4.14.patch into the tree
