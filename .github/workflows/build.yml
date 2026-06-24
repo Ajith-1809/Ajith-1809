@@ -147,37 +147,22 @@ jobs:
             head -3 "$MK"
           fi
 
-      - name: Drop -Werror from entire tree (qcacld-3.0 + tfa98xx + any other vendor dir)
+      - name: Drop -Werror from vendor drivers only (NOT top Makefile)
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # The kernel tree has `-Werror` set at multiple levels:
-          #   top-level Makefile (kernel KBUILD_CFLAGS)...) — blanket global,
-          #   drivers/staging/qcacld-3.0/Kbuild (cppflags-y) — staging ath11k,
-          #   and possibly others via subdir cppflags-y propagation rules.
-          #
-          # GCC 12+ promotes many warnings that older GCC treated as
-          # remarks: enum-int-mismatch, misleading-indent, maybe-uninit,
-          # format-truncation, etc.  Patching each driver individually is
-          # whack-a-mole.
-          #
-          # KSU + SUSFS are already zero-warning at all site.  The only
-          # -Werror casualties are vendor staging / codec / driver code
-          # that we don't own and don't maintain.  Drop -Werror from
-          # Makefile and Kbuild files across the entire tree in one pass
-          # after normalising word boundaries so the flag never survives.
-          find . -name 'Makefile' -o -name 'Kbuild' \
-            | xargs grep -l -- '-Werror' 2>/dev/null \
-            | while read -r f; do
-                echo "=== $f ==="
-                sed -i \
-                  "s/[[:space:]]-Werror[[:space:]]*/ /g; s/[[:space:]]-Werror\$//;
-                   s/-Werror=[^[:space:]]*//g;
-                   s/'\\''[^'\\'']*Werror[^'\\']*'\\''//g" "$f"
-              done
-          echo "--- Remaining -Werror references in tree ---"
-          grep -rn --include='Makefile' --include='Kbuild' -- '-Werror' . \
-            | head -30 || true
+          # Only strip -Werror from vendor Kbuild files, NOT from the top-level
+          # Makefile (which CONFIG_WERROR=n handles from .config).
+          # Known offenders with GCC 12+:
+          #   drivers/staging/qcacld-3.0/Kbuild  — Qualcomm backported wifi
+          for f in \
+            drivers/staging/qcacld-3.0/Kbuild \
+          ; do
+            if test -f "$f"; then
+              echo "=== $f ==="
+              sed -i 's/-Werror//g' "$f"
+            fi
+          done
 
       - name: Verify versions
         id: inspect
