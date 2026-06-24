@@ -41,18 +41,16 @@ jobs:
             cpio lz4 zip unzip bc patch
 
       - name: Fetch KBapna base at Unholy_KSUN+SUSFS (default branch)
+        uses: actions/checkout@v4
+        with:
+          repository: KBapna/Unholy_Phoenix_Redmi_K30_Kernel
+          ref: Unholy_KSUN+SUSFS
+          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+          fetch-depth: 1
+
+      - name: Verify KBapna checkout
         run: |
           set -euo pipefail
-          mkdir -p "$PROJECT_ROOT/build/sources"
-          # KBapna/Unholy_Phoenix_Redmi_K30_Kernel has only three branches
-          # (verified via API): Unholy_KSUN+SUSFS (default), Unholy_KSUN,
-          # Unholy. The earlier 'v2.2_Unholy_SUSFS' name does not exist on
-          # this fork. Use the default branch and phoenix_defconfig will be
-          # present at arch/arm64/configs/phoenix_defconfig.
-          # Full clone (no depth limit) — earlier runs completed this in ~90 s
-          git clone --branch Unholy_KSUN+SUSFS \
-            https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel \
-            "$PROJECT_ROOT/build/sources/KBapna"
           cd "$PROJECT_ROOT/build/sources/KBapna"
           echo "Listing arch/arm64/configs contents:"
           ls -l arch/arm64/configs
