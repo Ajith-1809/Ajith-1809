@@ -99,16 +99,20 @@ jobs:
           echo "=== Patching KSU-Next for kernel 4.14 compatibility ==="
           AK="drivers/kernelsu/allowlist.c"
           if [ -f "$AK" ]; then
-            # TWA_RESUME was added in kernel 5.3; on 4.14 use TWA_NONE
-            # put_task_struct() may need <linux/sched/task.h>
-            echo "Fixing TWA_RESUME -> TWA_NONE for kernel 4.14..."
-            sed -i 's/TWA_RESUME/TWA_NONE/g' "$AK"
-            # Add missing header for put_task_struct
-            if ! grep -q 'sched/task.h' "$AK"; then
-              sed -i '1i #include <linux/sched/task.h>' "$AK"
-              echo "Added <linux/sched/task.h> include"
-            fi
-            echo "Patched allowlist.c"
+            # CAF kernel 4.14 may be missing TWA_NONE/TWA_RESUME defines
+            echo "Adding TWA_NONE/TWA_RESUME fallback + missing header..."
+            printf '%s\n' \
+              '#ifndef TWA_NONE' \
+              '#define TWA_NONE 0' \
+              '#endif' \
+              '#ifndef TWA_RESUME' \
+              '#define TWA_RESUME 1' \
+              '#endif' \
+              '#include <linux/sched/task.h>' > /tmp/ksu_fix.h
+            cat /tmp/ksu_fix.h "$AK" > /tmp/allowlist_fixed.c
+            mv /tmp/allowlist_fixed.c "$AK"
+            rm -f /tmp/ksu_fix.h
+            echo "Patched allowlist.c with TWA fallbacks and sched/task.h"
           else
             echo "WARN: $AK not found"
           fi
