@@ -54,6 +54,8 @@ jobs:
             https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel \
             "$PROJECT_ROOT/build/sources/KBapna"
           cd "$PROJECT_ROOT/build/sources/KBapna"
+          echo "Listing arch/arm64/configs contents:"
+          ls -l arch/arm64/configs
           test -f arch/arm64/configs/phoenix_defconfig || {
             echo "::error::kbapna clone is missing arch/arm64/configs/phoenix_defconfig"
             git log -1 --oneline
