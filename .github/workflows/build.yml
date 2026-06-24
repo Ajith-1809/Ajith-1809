@@ -97,10 +97,10 @@ jobs:
           set -uo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           echo "=== Patching KSU-Next for kernel 4.14 compatibility ==="
-          AK="drivers/kernelsu/allowlist.c"
+          DK="drivers/kernelsu"
+          # Fix 1: allowlist.c — TWA_RESUME/TWA_NONE may not exist in CAF 4.14
+          AK="$DK/allowlist.c"
           if [ -f "$AK" ]; then
-            # CAF kernel 4.14 may be missing TWA_NONE/TWA_RESUME defines
-            echo "Adding TWA_NONE/TWA_RESUME fallback + missing header..."
             printf '%s\n' \
               '#ifndef TWA_NONE' \
               '#define TWA_NONE 0' \
@@ -112,10 +112,47 @@ jobs:
             cat /tmp/ksu_fix.h "$AK" > /tmp/allowlist_fixed.c
             mv /tmp/allowlist_fixed.c "$AK"
             rm -f /tmp/ksu_fix.h
-            echo "Patched allowlist.c with TWA fallbacks and sched/task.h"
+            echo "Patched allowlist.c"
           else
-            echo "WARN: $AK not found"
+            echo "WARN: allowlist.c not found"
           fi
+          # Fix 2: sucompat.c — linux/pgtable.h doesn't exist in 4.14; use asm/pgtable.h
+          SC="$DK/sucompat.c"
+          if [ -f "$SC" ]; then
+            sed -i 's|<linux/pgtable.h>|<asm/pgtable.h>|g' "$SC"
+            echo "Patched sucompat.c: linux/pgtable.h -> asm/pgtable.h"
+            # Check for any other missing headers KSU-Next v3.0.0 might expect on 4.14
+            grep '#include' "$SC"
+          elif [ -f "$DK/sucompat.h" ]; then
+            sed -i 's|<linux/pgtable.h>|<asm/pgtable.h>|g' "$DK/sucompat.h"
+            echo "Patched sucompat.h header"
+          else
+            echo "WARN: sucompat.c not found, skipping"
+          fi
+          # Fix 3: Scan ALL KSU source files for 4.14-incompatible includes
+          for f in "$DK"/*.c "$DK"/*.h; do
+            [ -f "$f" ] || continue
+            # linux/pgtable.h — added in 5.9, use asm/pgtable.h on 4.14
+            if grep -q 'linux/pgtable.h' "$f" 2>/dev/null; then
+              sed -i 's|<linux/pgtable.h>|<asm/pgtable.h>|g' "$f"
+              echo "  Fixed pgtable.h in $(basename $f)"
+            fi
+            # linux/refcount.h — added in 4.15, use atomic_t on 4.14
+            if grep -q 'linux/refcount.h' "$f" 2>/dev/null; then
+              sed -i 's|#include <linux/refcount.h>|#include <linux/atomic.h>|g' "$f"
+              echo "  Fixed refcount.h in $(basename $f)"
+            fi
+            # linux/xxhash.h — not in CAF 4.14
+            if grep -q 'linux/xxhash.h' "$f" 2>/dev/null; then
+              sed -i 's|#include <linux/xxhash.h>|// #include <linux/xxhash.h>|g' "$f"
+              echo "  Removed xxhash.h include in $(basename $f)"
+            fi
+            # linux/sched/mm.h — may not be in older 4.14 builds
+            if grep -q 'linux/sched/mm.h' "$f" 2>/dev/null; then
+              sed -i 's|linux/sched/mm.h|linux/sched.h|g' "$f"
+              echo "  Fixed sched/mm.h in $(basename $f)"
+            fi
+          done
           echo "=== Done patching KSU-Next ==="
 
       - name: Overlay SUSFS v1.5.5 (kernel-4.14 branch) into kernel tree
