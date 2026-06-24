@@ -43,17 +43,32 @@ jobs:
       - name: Fetch KBapna base at Unholy_KSUN+SUSFS (download ZIP)
         run: |
           set -euo pipefail
-          mkdir -p "$PROJECT_ROOT/build/sources/KBapna"
           # Download KBapna source as ZIP (much faster than git clone of 1.7 GB repo)
           curl -fL --retry 3 \
             "https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel/archive/refs/heads/Unholy_KSUN+SUSFS.zip" \
             -o /tmp/kbapna-src.zip
+          mkdir -p /tmp/kbapna-extracted
+          echo "Extracting ZIP archive ..."
           unzip -qo /tmp/kbapna-src.zip -d /tmp/kbapna-extracted
-          mv /tmp/kbapna-extracted/Unholy_Phoenix_Redmi_K30_Kernel-*/ "$PROJECT_ROOT/build/sources/KBapna"/.
+          # The single top-level directory name from a GitHub branch ZIP varies
+          # (especially with + in branch names). Resolve it dynamically.
+          extracted_dir=$(find /tmp/kbapna-extracted -mindepth 1 -maxdepth 1 -type d | head -1)
+          if [ -z "$extracted_dir" ]; then
+            echo "::error::No directory found in extracted ZIP"
+            ls -la /tmp/kbapna-extracted/
+            exit 1
+          fi
+          echo "Extracted: $extracted_dir"
+          mkdir -p "$PROJECT_ROOT/build/sources/KBapna"
+          shopt -s dotglob
+          mv "$extracted_dir"/* "$PROJECT_ROOT/build/sources/KBapna"/
+          shopt -u dotglob
           rm -f /tmp/kbapna-src.zip
+          rm -rf /tmp/kbapna-extracted
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "Listing arch/arm64/configs contents:"
+          echo "=== arch/arm64/configs ==="
           ls -l arch/arm64/configs
+          echo "=== phoenix_defconfig present: $([ -f arch/arm64/configs/phoenix_defconfig ] && echo YES || echo NO) ==="
           test -f arch/arm64/configs/phoenix_defconfig || {
             echo "::error::kbapna clone is missing arch/arm64/configs/phoenix_defconfig"
             exit 1
