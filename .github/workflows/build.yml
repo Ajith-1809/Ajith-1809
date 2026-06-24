@@ -92,6 +92,28 @@ jobs:
           bash /tmp/ksun-setup.sh v3.0.0
           rm -f /tmp/ksun-setup.sh
 
+      - name: Patch KSU-Next v3.0.0 for kernel 4.14 compatibility
+        run: |
+          set -uo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          echo "=== Patching KSU-Next for kernel 4.14 compatibility ==="
+          AK="drivers/kernelsu/allowlist.c"
+          if [ -f "$AK" ]; then
+            # TWA_RESUME was added in kernel 5.3; on 4.14 use TWA_NONE
+            # put_task_struct() may need <linux/sched/task.h>
+            echo "Fixing TWA_RESUME -> TWA_NONE for kernel 4.14..."
+            sed -i 's/TWA_RESUME/TWA_NONE/g' "$AK"
+            # Add missing header for put_task_struct
+            if ! grep -q 'sched/task.h' "$AK"; then
+              sed -i '1i #include <linux/sched/task.h>' "$AK"
+              echo "Added <linux/sched/task.h> include"
+            fi
+            echo "Patched allowlist.c"
+          else
+            echo "WARN: $AK not found"
+          fi
+          echo "=== Done patching KSU-Next ==="
+
       - name: Overlay SUSFS v1.5.5 (kernel-4.14 branch) into kernel tree
         run: |
           set -uo pipefail
