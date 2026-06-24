@@ -243,6 +243,29 @@ jobs:
           SUSFS_SOURCE_VERSION: ${{ steps.inspect.outputs.susfs_version }}
         run: bash "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/manifest/report.sh" "$PWD"
 
+      - name: Package AnyKernel3 flashable ZIP
+        run: |
+          set -euo pipefail
+          KERNEL_SRC="$PROJECT_ROOT/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb"
+          AK3_SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3"
+          OUT_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/out"
+          ZIP_NAME="Unholy_Phoenix_KSU-Next_v3.0.0_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip"
+          test -f "$KERNEL_SRC" || { echo "::error::Image.gz-dtb not found at $KERNEL_SRC"; exit 1; }
+          test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
+          mkdir -p "$OUT_DIR"
+          rm -rf /tmp/ak3-package
+          cp -r "$AK3_SRC" /tmp/ak3-package
+          chmod -R u+w /tmp/ak3-package
+          cp "$KERNEL_SRC" /tmp/ak3-package/Image.gz-dtb
+          cd /tmp/ak3-package
+          # Standard AnyKernel3 zip: store (no compression for boot images)
+          zip -r -0 "$OUT_DIR/$ZIP_NAME" . \
+            -x ".*" -x "*/.*"
+          echo "=== AnyKernel3 ZIP created ==="
+          ls -lh "$OUT_DIR/$ZIP_NAME"
+          echo "zip_path=$OUT_DIR/$ZIP_NAME" >> "$GITHUB_ENV"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_ENV"
+
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
@@ -262,6 +285,13 @@ jobs:
         with:
           name: manifest-${{ github.run_number }}
           path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/build/manifest/MANIFEST.json
+          retention-days: 30
+
+      - name: Upload AnyKernel3 flashable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: anykernel3-${{ github.run_number }}
+          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSU-Next_v3.0.0_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip
           retention-days: 30
 
   adb-pull:
