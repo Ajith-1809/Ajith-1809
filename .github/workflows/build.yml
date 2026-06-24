@@ -213,6 +213,8 @@ jobs:
           #       doesn't compose with LLVM=1). Sticking with GCC for stability.
           #   (2) -j2: ubuntu-latest runners have 2 cores and KBapna's tree has
           #       memory spikes during parallel drivers/ builds; -j2 avoids OOM.
+          # Ensure build/ exists for tee log output
+          mkdir -p build
           make -j2 ARCH=arm64 \
             Image.gz-dtb dtbs \
             |& tee build/kernel-build.log
