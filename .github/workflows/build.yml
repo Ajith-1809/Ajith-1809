@@ -74,33 +74,65 @@ jobs:
             exit 1
           }
 
-      - name: Check KSU-Next built into KBapna tree (no overlay needed — tree already ships KSUN)
+      - name: Overlay KernelSU-Next v3.0.0 via upstream setup.sh
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== Checking built-in KSU-Next ==="
-          # The KBapna "Unholy_KSUN+SUSFS" branch already has KSU-Next integrated.
-          # Fresh KSUN v3.0.0 is not compatible with kernel 4.14 (uses TWA_RESUME,
-          # strncpy_from_user_nofault, pgtable.h, etc from 5.x+).
-          # Skipping overlay — the tree's native KSUN works with kernel 4.14.
-          KSU_DIRS="drivers/kernelsu KernelSU"
-          for d in $KSU_DIRS; do
-            if [ -d "$d" ]; then
-              echo "Found: $d/"
-              ls "$d/"*.c 2>/dev/null | head -5
+          # Clone KSUN v3.0.0 into the kernel tree. The upstream setup.sh
+          # handles non-GKI kernel 4.14 trees but KSUN v3.0.0 source files
+          # reference APIs (TWA_RESUME, strncpy_from_user_nofault, pgtable.h)
+          # that were added in kernel 5.3+ / 5.9+. We apply a compat layer
+          # in the next step to backport those APIs.
+          if [[ -d KernelSU-Next ]]; then
+            rm -rf KernelSU-Next
+          fi
+          curl -fsSL \
+            "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.0.0/kernel/setup.sh" \
+            -o /tmp/ksun-setup.sh
+          bash /tmp/ksun-setup.sh v3.0.0
+          rm -f /tmp/ksun-setup.sh
+
+      - name: Backport kernel 4.14 compat layer for KSUN v3.0.0 APIs
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          echo "=== Applying KSUN v3.0.0 kernel 4.14 compatibility layer ==="
+          # 1. Copy the compat header into drivers/kernelsu/
+          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat.h" \
+            drivers/kernelsu/ksu_compat.h
+          # 2. Force-include ksu_compat.h in all KSUN source files via Makefile
+          KSU_MK="drivers/kernelsu/Makefile"
+          if [ -f "$KSU_MK" ]; then
+            if ! grep -q 'ksu_compat.h' "$KSU_MK"; then
+              sed -i '1i ccflags-y += -include $(src)/ksu_compat.h' "$KSU_MK"
+              echo "Added -include ksu_compat.h to KSU Makefile"
+            fi
+          else
+            echo "WARN: $KSU_MK not found"
+          fi
+          # 3. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
+          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat_pgtable.h" \
+            include/linux/pgtable.h
+          echo "Created include/linux/pgtable.h -> asm/pgtable.h alias"
+          # 4. Verify the compat layer covers all known missing symbols
+          echo "=== Checking for remaining 4.14-incompatible references ==="
+          DK="drivers/kernelsu"
+          for f in "$DK"/*.c "$DK"/*.h; do
+            [ -f "$f" ] || continue
+            issues=""
+            grep -q 'linux/refcount.h' "$f" 2>/dev/null && issues="$issues refcount.h"
+            grep -q 'linux/xxhash.h' "$f" 2>/dev/null && issues="$issues xxhash.h"
+            grep -q 'linux/sched/mm.h' "$f" 2>/dev/null && issues="$issues sched/mm.h"
+            if [ -n "$issues" ]; then
+              echo "  UNRESOLVED in $(basename $f):$issues"
             fi
           done
-          if [ -d "drivers/kernelsu" ]; then
-            echo "=== KSU-Next is built into the KBapna tree ==="
-          echo "=== KSU-Next is built into the KBapna tree ==="
-          echo "=== Done ==="
+          echo "=== Compat layer applied ==="
 
       - name: Overlay SUSFS v1.5.5 (kernel-4.14 branch) into kernel tree
         run: |
           set -uo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          # The 4.14 NON-GKI branch is the only one that ships patches KBapna's
-          # tree expects. v1.5.5 is the same version the device already runs.
           echo "=== Downloading SUSFS kernel-4.14 tarball ==="
           curl -fL --retry 3 --retry-max-time 120 \
             "https://gitlab.com/simonpunk/susfs4ksu/-/archive/kernel-4.14/susfs4ksu-kernel-4.14.tar.gz" \
@@ -120,9 +152,9 @@ jobs:
           cp -v /tmp/susfs/kernel_patches/include/linux/susfs.h     ./include/linux/ 2>&1 || echo "WARN: susfs.h not found"
           cp -v /tmp/susfs/kernel_patches/include/linux/susfs_def.h ./include/linux/ 2>&1 || echo "WARN: susfs_def.h not found"
           cp -v /tmp/susfs/kernel_patches/include/linux/sus_su.h    ./include/linux/ 2>&1 || echo "WARN: sus_su.h not found"
-          # KBapna tree already has KSUN integrated. Find its Kconfig.
+          # Find KSUN Kconfig and inject SUSFS options
           KSU_KCONFIG=""
-          for kc in KernelSU/kernel/Kconfig KernelSU/Kconfig drivers/kernelsu/Kconfig KernelSU-Next/kernel/Kconfig; do
+          for kc in KernelSU-Next/kernel/Kconfig KernelSU/kernel/Kconfig KernelSU/Kconfig drivers/kernelsu/Kconfig; do
             if [ -f "$kc" ]; then
               KSU_KCONFIG="$kc"
               echo "Found KSUN Kconfig at: $kc"
@@ -132,13 +164,28 @@ jobs:
           if [ -z "$KSU_KCONFIG" ]; then
             echo "WARN: no KSUN Kconfig found — SUSFS Kconfig options may be silently dropped"
           fi
-          # Skip KSUN glue patch — KBapna tree already has KSUN hooks baked in.
-          # Only inject SUSFS Kconfig if the tree doesn't already have it.
-          if [ -n "$KSU_KCONFIG" ] && ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
-            cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
-            echo "Injected SUSFS Kconfig entries into $KSU_KCONFIG"
-          elif [ -n "$KSU_KCONFIG" ]; then
-            echo "SUSFS Kconfig already present in $KSU_KCONFIG"
+          # Apply KSUN glue patch if it applies; otherwise inject Kconfig manually
+          KSUN_PATCH="/tmp/susfs/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+          if [ -f "$KSUN_PATCH" ] && [ -d KernelSU-Next ]; then
+            echo "=== Trying KSUN glue patch ==="
+            cp "$KSUN_PATCH" ./KernelSU-Next/
+            if ( cd ./KernelSU-Next && patch --dry-run -p1 < 10_enable_susfs_for_ksu.patch >/dev/null 2>&1 ); then
+              echo "=== SUSFS KSUN patch applies cleanly ==="
+              ( cd ./KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch )
+            else
+              echo "=== KSUN patch DRY-RUN FAILED; injecting Kconfig ==="
+              if [ -n "$KSU_KCONFIG" ] && ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
+                cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
+                echo "Injected SUSFS Kconfig entries"
+              fi
+            fi
+            rm -f ./KernelSU-Next/10_enable_susfs_for_ksu.patch
+          else
+            echo "KSUN glue patch not applicable; injecting Kconfig if needed"
+            if [ -n "$KSU_KCONFIG" ] && ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
+              cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
+              echo "Injected SUSFS Kconfig entries"
+            fi
           fi
           # Apply the kernel-side 50_add_susfs patch
           echo "=== Applying kernel-side SUSFS patch ==="
@@ -195,7 +242,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || git -C KernelSU describe --tags --always 2>/dev/null || echo "built-in")
+          KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo "v3.0.0")
           # Read the SUSFS_VERSION macro out of the freshly copied susfs.h
           SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' include/linux/susfs.h 2>/dev/null \
                       | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
