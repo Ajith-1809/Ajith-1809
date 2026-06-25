@@ -43,6 +43,59 @@
 #define TASK_STRUCT_NON_ROOT_USER_APP_PROC BIT(24)
 #endif
 
+/* ===== Legacy v1.5.5 mount-ID constants (renamed/removed in v2.2.0) =====
+ * fs/namespace.c hooks reference these for mount namespace operations.
+ * v2.2.0 renamed them or removed them entirely.
+ */
+#ifndef DEFAULT_SUS_MNT_ID
+#define DEFAULT_SUS_MNT_ID 100000
+#endif
+#ifndef DEFAULT_SUS_MNT_GROUP_ID
+#define DEFAULT_SUS_MNT_GROUP_ID 1000
+#endif
+#ifndef DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE
+#define DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE 1000000
+#endif
+
+/* ===== v2.2.0-new defines that the replaced source files expect =====
+ * The v2.2.0 GKI source (susfs.c, susfs.h) references these defines
+ * which don't exist in the original v1.5.5 susfs_def.h from KBapna.
+ * Provide them here since the compat header is force-included.
+ */
+#ifndef DEFAULT_KSU_MNT_ID
+#define DEFAULT_KSU_MNT_ID 2000000000
+#endif
+#ifndef DEFAULT_KSU_MNT_GROUP_ID
+#define DEFAULT_KSU_MNT_GROUP_ID 200000
+#endif
+#ifndef CMD_SUSFS_ADD_SUS_PATH_LOOP
+#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x555e8
+#endif
+#ifndef CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING
+#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x555e9
+#endif
+#ifndef CMD_SUSFS_ADD_SUS_MAP
+#define CMD_SUSFS_ADD_SUS_MAP 0x555ea
+#endif
+#ifndef AS_FLAGS_SUS_PATH
+#define AS_FLAGS_SUS_PATH 33
+#endif
+#ifndef AS_FLAGS_SUS_KSTAT
+#define AS_FLAGS_SUS_KSTAT 35
+#endif
+#ifndef TIF_PROC_UMOUNTED
+#define TIF_PROC_UMOUNTED 33
+#endif
+#ifndef ND_STATE_LOOKUP_LAST
+#define ND_STATE_LOOKUP_LAST 32
+#endif
+#ifndef ND_FLAGS_LOOKUP_LAST
+#define ND_FLAGS_LOOKUP_LAST 0x2000000
+#endif
+#ifndef MAGIC_MOUNT_WORKDIR
+#define MAGIC_MOUNT_WORKDIR ".workdir"
+#endif
+
 /* ===== fsnotify_ops.handle_inode_event compat =====
  * Kernel 5.0+ (approx) changed the fsnotify callback from:
  *   int (*handle_event)(group, inode, inode_mark, vfsmount_mark,
