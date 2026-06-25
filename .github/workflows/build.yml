@@ -97,16 +97,17 @@ jobs:
           # 1. Copy the compat header into drivers/kernelsu/
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat.h" \
             drivers/kernelsu/ksu_compat.h
-          # 2. Force-include ksu_compat.h in all KSUN source files via Makefile
-          KSU_MK="drivers/kernelsu/Makefile"
-          if [ -f "$KSU_MK" ]; then
-            if ! grep -q 'ksu_compat.h' "$KSU_MK"; then
-              sed -i '1i ccflags-y += -include $(src)/ksu_compat.h' "$KSU_MK"
-              echo "Added -include ksu_compat.h to KSU Makefile"
-            fi
-          else
-            echo "WARN: $KSU_MK not found"
-          fi
+          # 2. Replace LKM-style Makefile with built-in Makefile for kernel 4.14
+          #    The upstream v3.2.0-legacy kernel/Makefile is designed for
+          #    external-module (LKM) compilation (make ... M=$(MDIR) modules).
+          #    When drivers/Makefile has obj-$(CONFIG_KSU) += kernelsu/ for
+          #    built-in mode, that LKM Makefile produces NO objects — causing
+          #    vmlinux link failures for ksu_input_hook and all other KSUN
+          #    symbols.  Our replacement lists every .c file explicitly via
+          #    kernelsu-y and compiles them all into kernelsu.o.
+          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksun_v3_makefile" \
+            drivers/kernelsu/Makefile
+          echo "Replaced KSUN Makefile with built-in version for kernel 4.14"
           # 3. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat_pgtable.h" \
             include/linux/pgtable.h 2>/dev/null || touch include/linux/pgtable.h

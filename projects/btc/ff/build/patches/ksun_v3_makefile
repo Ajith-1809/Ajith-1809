@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# KernelSU-Next v3.2.0-legacy built-in Makefile for non-GKI (4.14) kernels.
+#
+# Replaces the upstream LKM-style kernel/Makefile which uses
+#   make -C $(KDIR) M=$(MDIR) modules
+# and does NOT produce any objects when the source is symlinked into
+# drivers/ for built-in (obj-y) compilation.
+#
+# This Makefile compiles all v3.2.0-legacy source files and combines
+# them into kernelsu.o, linked into vmlinux via obj-$(CONFIG_KSU).
+
+kernelsu-y := compat/kernel_compat.o
+kernelsu-y += core/init.o
+kernelsu-y += extras.o
+kernelsu-y += feature/kernel_umount.o
+kernelsu-y += feature/sucompat.o
+kernelsu-y += hook/hook_manager.o
+kernelsu-y += hook/lsm_hooks.o
+kernelsu-y += hook/setuid_hook.o
+kernelsu-y += infra/file_wrapper.o
+kernelsu-y += infra/seccomp_cache.o
+kernelsu-y += infra/su_mount_ns.o
+kernelsu-y += manager/apk_sign.o
+kernelsu-y += manager/pkg_observer.o
+kernelsu-y += manager/throne_tracker.o
+kernelsu-y += policy/allowlist.o
+kernelsu-y += policy/app_profile.o
+kernelsu-y += policy/feature.o
+kernelsu-y += runtime/boot_event.o
+kernelsu-y += runtime/ksud_integration.o
+kernelsu-y += supercall/dispatch.o
+kernelsu-y += supercall/perm.o
+kernelsu-y += supercall/supercall.o
+kernelsu-y += tiny_sulog.o
+kernelsu-y += selinux/selinux.o
+kernelsu-y += selinux/sepolicy.o
+kernelsu-y += selinux/rules.o
+
+obj-$(CONFIG_KSU) += kernelsu.o
+
+# Version info (used by supercall/dispatch.c and include/ksu.h)
+ccflags-y += -DKSU_VERSION=11998
+ccflags-y += -DKSU_VERSION_TAG=\"v3.2.0-legacy\"
+
+# Force-include the kernel 4.14 compat layer (TWA flags, nofault, etc.)
+ccflags-y += -include $(src)/ksu_compat.h
+
+# Local include paths for KSUN headers (klog.h, ksu.h, arch.h)
+ccflags-y += -I$(src) -I$(src)/include
+
+# SELinux kernel headers (needed by selinux/ and feature/sucompat.c)
+ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
+ccflags-y += -I$(objtree)/security/selinux
+
+# Suppress warnings from KSUN upstream code (harmless on non-GKI kernels)
+ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
+ccflags-y += -Wno-int-conversion -Wno-gcc-compat
+ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
