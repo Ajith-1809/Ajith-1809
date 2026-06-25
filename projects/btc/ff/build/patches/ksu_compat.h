@@ -80,4 +80,37 @@ static inline struct task_security_struct *selinux_cred(const struct cred *cred)
 #endif
 #endif
 
+/* =====================================================================
+ * SUSFS defines for KSUN supercall dispatch
+ * Required by KernelSU-Next/kernel/supercall/supercall.c for SUSFS
+ * SHOW command dispatch (CMD_SUSFS_SHOW_VERSION, etc.).
+ * Only the SHOW commands are defined here — other SUSFS CMD codes
+ * are in fs/susfs_def.h and reachable via linux/susfs_def.h.
+ * ===================================================================== */
+#ifndef SUSFS_MAGIC
+#define SUSFS_MAGIC 0xFAFAFAFA
+#endif
+
+/* SUSFS SHOW command codes (from include/linux/susfs_def.h) */
+#ifndef CMD_SUSFS_SHOW_VERSION
+#define CMD_SUSFS_SHOW_VERSION 0x555e1
+#endif
+#ifndef CMD_SUSFS_SHOW_ENABLED_FEATURES
+#define CMD_SUSFS_SHOW_ENABLED_FEATURES 0x555e2
+#endif
+#ifndef CMD_SUSFS_SHOW_VARIANT
+#define CMD_SUSFS_SHOW_VARIANT 0x555e3
+#endif
+
+/* Forward declarations for SUSFS SHOW functions — defined in fs/susfs.c */
+#ifdef CONFIG_KSU_SUSFS
+void susfs_get_enabled_features(void __user **user_info);
+void susfs_show_variant(void __user **user_info);
+void susfs_show_version(void __user **user_info);
+#else
+static inline void susfs_get_enabled_features(void __user **user_info) { }
+static inline void susfs_show_variant(void __user **user_info) { }
+static inline void susfs_show_version(void __user **user_info) { }
+#endif /* CONFIG_KSU_SUSFS */
+
 #endif /* _KSU_COMPAT_H_ */

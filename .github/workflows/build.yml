@@ -187,6 +187,13 @@ jobs:
           rm -rf /tmp/susfs_v2 /tmp/susfs_v2.tar.gz
           echo "=== SUSFS v2.2.0 backport complete ==="
 
+      - name: Add SUSFS userspace SHOW commands (version/variant/enabled_features)
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_show_commands.sh" \
+            "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/KBapna"
+          echo "=== SUSFS SHOW commands added ==="
+
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |
           set -euo pipefail
