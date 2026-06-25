@@ -143,18 +143,8 @@ jobs:
             -o /tmp/susfs_v2.tar.gz || { echo "FAIL: download failed"; exit 1; }
           mkdir -p /tmp/susfs_v2
           tar -xzf /tmp/susfs_v2.tar.gz -C /tmp/susfs_v2 --strip-components=1
-          echo "=== Copying v2.2.0 header only (NOT susfs.c — KBapna v1.5.5 function names != v2.2.0 API) ==="
-          # IMPORTANT: Only copy susfs.h for new defines/features. KBapna tree's
-          # patched hooks (stat.c, namei.c, namespace.c, etc.) call v1.5.5 function
-          # names that exist in the ORIGINAL susfs.c. The v2.2.0 GKI susfs.c has
-          # completely different function signatures and would cause vmlinux link
-          # failures (undefined references to susfs_sus_ino_*, susfs_get_* etc.).
-          cp -v /tmp/susfs_v2/kernel_patches/include/linux/susfs.h  ./include/linux/ || { echo "FAIL: susfs.h"; exit 1; }
-          echo "=== Keeping original v1.5.5 susfs_def.h AND susfs.c (legacy defines + functions) ==="
-          echo "=== v2.2.0-new defines provided via susfs_v2_backport_compat.h ==="
-          echo "=== Applied 4.14 compatibility fixes to v2.2.0 header ==="
-          # Fix KSTAT_SPOOF_CTIME_TV_SEC typo: (1 < 8) -> (1 << 8)
-          sed -i 's/(1 < 8)/(1 << 8)/g' ./include/linux/susfs.h
+          echo "=== v2.2.0 structs/APIs are INCOMPATIBLE with v1.5.5 — keeping ORIGINAL KBapna files ==="
+          echo "=== v2.2.0 feature flags and CMD codes provided via susfs_v2_backport_compat.h ==="
           # Force-include the backport compat header into susfs.c build
           if ! grep -q 'susfs_v2_backport_compat.h' ./fs/Makefile; then
             sed -i '1i ccflags-y += -include $(src)/susfs_v2_backport_compat.h' ./fs/Makefile
