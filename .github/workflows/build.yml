@@ -222,6 +222,21 @@ jobs:
             -exec sed -i 's/-Werror//g' {} \;
           echo "=== Done ==="
 
+      - name: Fetch AnyKernel3 tools (busybox, magiskboot, magiskpolicy)
+        run: |
+          set -euo pipefail
+          AK3_TOOLS_DIR="$PROJECT_ROOT/build/packaging/ak3/tools"
+          mkdir -p "$AK3_TOOLS_DIR"
+          # Download tools from osm0sis/AnyKernel3 official repo
+          AK3_REPO="https://raw.githubusercontent.com/osm0sis/AnyKernel3/master"
+          for tool in busybox magiskboot magiskpolicy; do
+            echo "Downloading $tool ..."
+            curl -fL --retry 3 "$AK3_REPO/tools/$tool" -o "$AK3_TOOLS_DIR/$tool"
+            chmod +x "$AK3_TOOLS_DIR/$tool"
+          done
+          echo "=== AK3 tools ==="
+          ls -lh "$AK3_TOOLS_DIR/"
+
       - name: Verify versions
         id: inspect
         run: |
