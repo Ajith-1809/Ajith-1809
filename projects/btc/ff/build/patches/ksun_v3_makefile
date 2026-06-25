@@ -9,6 +9,13 @@
 #
 # This Makefile compiles all v3.2.0-legacy source files and combines
 # them into kernelsu.o, linked into vmlinux via obj-$(CONFIG_KSU).
+#
+# NOTE: The upstream KernelSU-Next repo also ships a Kbuild file that
+# takes PRIORITY over Makefile in the kernel build system. That Kbuild
+# has a fail-fast check requiring ksu_handle_sys_reboot in kernel/reboot.c
+# (for CONFIG_KSU_MANUAL_HOOK). The KBapna tree has hooks in input.c,
+# exec.c, open.c, stat.c but NOT in reboot.c, so Kbuild fails.
+# Solution: delete Kbuild after copying this Makefile.
 
 kernelsu-y := compat/kernel_compat.o
 kernelsu-y += core/init.o

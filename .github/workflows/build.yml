@@ -108,7 +108,12 @@ jobs:
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksun_v3_makefile" \
             drivers/kernelsu/Makefile
           echo "Replaced KSUN Makefile with built-in version for kernel 4.14"
-          # 3. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
+          # 3. Delete Kbuild — it takes priority over Makefile and has a fail-fast
+          #    hook check (ksu_handle_sys_reboot in kernel/reboot.c) that the KBapna
+          #    tree doesn't satisfy. Our built-in Makefile handles all compilation.
+          rm -f drivers/kernelsu/Kbuild
+          echo "Removed KSUN Kbuild (Makefile now takes priority)"
+          # 4. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat_pgtable.h" \
             include/linux/pgtable.h 2>/dev/null || touch include/linux/pgtable.h
           echo "Created include/linux/pgtable.h -> asm/pgtable.h alias"
