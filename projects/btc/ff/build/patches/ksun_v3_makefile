@@ -46,6 +46,10 @@ ccflags-y += -DKSU_VERSION_TAG=\"v3.2.0-legacy\"
 # Force-include the kernel 4.14 compat layer (TWA flags, nofault, etc.)
 ccflags-y += -include $(src)/ksu_compat.h
 
+# ksu_compat.h provides its own strncpy_from_user_nofault (static inline).
+# Prevent kernel_compat.c from defining a conflicting global version.
+ccflags-y += -DKSU_OPTIONAL_STRNCPY
+
 # Local include paths for KSUN headers (klog.h, ksu.h, arch.h)
 ccflags-y += -I$(src) -I$(src)/include
 
