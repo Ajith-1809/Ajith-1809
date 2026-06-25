@@ -18,6 +18,7 @@
 # Solution: delete Kbuild after copying this Makefile.
 
 kernelsu-y := compat/kernel_compat.o
+kernelsu-y += susfs_compat.o
 kernelsu-y += core/init.o
 kernelsu-y += extras.o
 kernelsu-y += feature/kernel_umount.o

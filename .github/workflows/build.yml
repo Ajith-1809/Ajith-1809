@@ -97,6 +97,10 @@ jobs:
           # 1. Copy the compat header into drivers/kernelsu/
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat.h" \
             drivers/kernelsu/ksu_compat.h
+          # 1b. Copy SUSFS compat source (provides susfs_is_current_ksu_domain,
+          #     susfs_is_current_zygote_domain, ksu_try_umount, etc.)
+          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_susfs_compat.c" \
+            drivers/kernelsu/susfs_compat.c
           # 2. Replace LKM-style Makefile with built-in Makefile for kernel 4.14
           #    The upstream v3.2.0-legacy kernel/Makefile is designed for
           #    external-module (LKM) compilation (make ... M=$(MDIR) modules).

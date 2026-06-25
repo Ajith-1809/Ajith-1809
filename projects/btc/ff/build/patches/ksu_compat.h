@@ -64,4 +64,20 @@ strncpy_from_user_nofault(char *dst, const char __user *src, long count)
 #endif
 #endif
 
+/* ===== selinux_cred() compat =====
+ * The selinux_cred() helper was added in upstream Linux 5.x.
+ * On kernel 4.14, cred->security holds the task_security_struct
+ * directly. KSUN v3.2.0-legacy uses selinux_cred() in its
+ * selinux.c for domain transitions and SID matching.
+ * Provide a static inline that mimics the GKI function.
+ */
+#ifdef CONFIG_SECURITY_SELINUX
+#ifndef selinux_cred
+static inline struct task_security_struct *selinux_cred(const struct cred *cred)
+{
+	return (struct task_security_struct *)(cred->security);
+}
+#endif
+#endif
+
 #endif /* _KSU_COMPAT_H_ */
