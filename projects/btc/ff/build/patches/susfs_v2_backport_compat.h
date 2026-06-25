@@ -22,6 +22,7 @@
 #include <linux/bits.h>
 #include <linux/threads.h>
 #include <linux/thread_info.h>
+#include <linux/uidgid.h>
 
 /* =====================================================================
  * SECTION 1 — Legacy v1.5.5 defines (for KBapna tree's kernel hooks)
@@ -357,10 +358,10 @@ static inline int fsnotify_add_inode_mark(struct fsnotify_mark *mark,
 					   int allow_dups)
 {
 	/*
-	 * On 4.14, fsnotify_add_mark(group, mark, inode, NULL, allow_dups)
-	 * is the equivalent. mark->group is set by fsnotify_init_mark().
+	 * On 4.14: fsnotify_add_mark(mark, inode, NULL, allow_dups)
+	 * Pass NULL for vfsmount (inode mark, not mount mark).
 	 */
-	return fsnotify_add_mark(mark, mark->group, inode, NULL, allow_dups);
+	return fsnotify_add_mark(mark, inode, NULL, allow_dups);
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0) */
 #endif /* HAVE_FSNOTIFY_ADD_INODE_MARK */
