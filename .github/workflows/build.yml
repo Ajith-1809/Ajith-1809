@@ -140,8 +140,46 @@ jobs:
           echo "=== Copying v2.2.0 source files over KBapna base ==="
           cp -v /tmp/susfs_v2/kernel_patches/fs/susfs.c  ./fs/ || { echo "FAIL: susfs.c not found"; exit 1; }
           cp -v /tmp/susfs_v2/kernel_patches/include/linux/susfs.h     ./include/linux/ || { echo "FAIL: susfs.h"; exit 1; }
-          cp -v /tmp/susfs_v2/kernel_patches/include/linux/susfs_def.h ./include/linux/ || { echo "FAIL: susfs_def.h"; exit 1; }
-          echo "=== Applying 4.14 compatibility fixes to v2.2.0 source ==="
+          echo "=== Keeping original v1.5.5 susfs_def.h (legacy defines needed by hooks) ==="
+          echo "=== Appending v2.2.0-only new defines to existing susfs_def.h ==="
+          cat >> ./include/linux/susfs_def.h <<- 'SUSFS_V2_DEFINES'
+
+/* ===== v2.2.0 added defines (GKI gki-android14-5.15 branch) ===== */
+#ifndef DEFAULT_KSU_MNT_ID
+#define DEFAULT_KSU_MNT_ID 2000000000
+#endif
+#ifndef DEFAULT_KSU_MNT_GROUP_ID
+#define DEFAULT_KSU_MNT_GROUP_ID 200000
+#endif
+#ifndef CMD_SUSFS_ADD_SUS_PATH_LOOP
+#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x555e8
+#endif
+#ifndef CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING
+#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x555e9
+#endif
+#ifndef CMD_SUSFS_ADD_SUS_MAP
+#define CMD_SUSFS_ADD_SUS_MAP 0x555ea
+#endif
+#ifndef AS_FLAGS_SUS_PATH
+#define AS_FLAGS_SUS_PATH 33
+#endif
+#ifndef AS_FLAGS_SUS_KSTAT
+#define AS_FLAGS_SUS_KSTAT 35
+#endif
+#ifndef TIF_PROC_UMOUNTED
+#define TIF_PROC_UMOUNTED 33
+#endif
+#ifndef ND_STATE_LOOKUP_LAST
+#define ND_STATE_LOOKUP_LAST 32
+#endif
+#ifndef ND_FLAGS_LOOKUP_LAST
+#define ND_FLAGS_LOOKUP_LAST 0x2000000
+#endif
+#ifndef MAGIC_MOUNT_WORKDIR
+#define MAGIC_MOUNT_WORKDIR ".workdir"
+#endif
+SUSFS_V2_DEFINES
+          echo "=== Applied 4.14 compatibility fixes to v2.2.0 source ==="
           # Fix KSTAT_SPOOF_CTIME_TV_SEC typo: (1 < 8) -> (1 << 8)
           sed -i 's/(1 < 8)/(1 << 8)/g' ./include/linux/susfs.h
           # Remove 'static' from fsnotify handler so the compat header can forward-declare it
