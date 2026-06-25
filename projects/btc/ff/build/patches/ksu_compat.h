@@ -49,4 +49,19 @@ strncpy_from_user_nofault(char *dst, const char __user *src, long count)
 }
 #endif
 
+/* ===== selinux_inode() compat =====
+ * Kernel 4.14 CAF does NOT have the selinux_inode(inode) function
+ * (added in kernel 5.x GKI). On 4.14, the inode security struct
+ * is accessible via inode->i_security. Provide a compat definition.
+ * Include objsec.h for struct inode_security_struct (it is available
+ * after 'make prepare' generates flask.h). Guarded with #ifndef so
+ * kernels that already define selinux_inode are not affected.
+ */
+#ifdef CONFIG_SECURITY_SELINUX
+#include "objsec.h"
+#ifndef selinux_inode
+#define selinux_inode(inode) ((struct inode_security_struct *)((inode)->i_security))
+#endif
+#endif
+
 #endif /* _KSU_COMPAT_H_ */
