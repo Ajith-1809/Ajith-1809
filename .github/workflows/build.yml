@@ -137,6 +137,42 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
+      - name: Patch kernel/reboot.c for SUSFS/KSU supercall dispatch
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          KSRC="kernel/reboot.c"
+          echo "=== Adding KSU/SUSFS supercall hook to $KSRC ==="
+
+          # 1. Add extern declarations after the last include (linux/uaccess.h)
+          #    Use a temp file with sed 'r' to avoid escape-sequence portability issues.
+          cat > /tmp/reboot_extern_decls.c << 'PATCHEOF'
+          /* KSU / SUSFS supercall handlers (from drivers/kernelsu/) */
+          extern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
+          extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
+          PATCHEOF
+          sed -i '/^#include <linux\/uaccess.h>/r /tmp/reboot_extern_decls.c' "$KSRC"
+          rm -f /tmp/reboot_extern_decls.c
+
+          # 2. Insert the supercall dispatch block after "return -EPERM;" but before
+          #    the LINUX_REBOOT_MAGIC1 check.  Use bash $'...' strings so \t becomes
+          #    a literal tab character matching the kernel's coding style.
+          {
+            echo $'\t/* KSU/SUSFS supercall: check for KSU_INSTALL_MAGIC1 (0xDEADBEEF) */'
+            echo $'\tif (magic1 == 0xDEADBEEF) {'
+            echo $'\t\tif (magic2 == 0xFAFAFAFA)'
+            echo $'\t\t\treturn susfs_handle_sys_reboot(cmd, arg);'
+            echo $'\t\tksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);'
+            echo $'\t\treturn 0;'
+            echo $'\t}'
+          } > /tmp/reboot_supercall_block.c
+          sed -i '/return -EPERM;/r /tmp/reboot_supercall_block.c' "$KSRC"
+          rm -f /tmp/reboot_supercall_block.c
+
+          echo "=== Verifying $KSRC patch ==="
+          grep -n 'supercall\|0xDEADBEEF\|0xFAFAFAFA' "$KSRC" || { echo "FAIL: patch markers not found"; exit 1; }
+          echo "=== OK ==="
+
       - name: Backport SUSFS v2.2.0 from GKI source to kernel 4.14
         run: |
           set -uo pipefail
@@ -186,13 +222,6 @@ jobs:
           fi
           rm -rf /tmp/susfs_v2 /tmp/susfs_v2.tar.gz
           echo "=== SUSFS v2.2.0 backport complete ==="
-
-      - name: Add SUSFS userspace SHOW commands (version/variant/enabled_features)
-        run: |
-          set -euo pipefail
-          bash "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_show_commands.sh" \
-            "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== SUSFS SHOW commands added ==="
 
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |
