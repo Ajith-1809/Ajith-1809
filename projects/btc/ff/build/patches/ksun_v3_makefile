@@ -62,6 +62,12 @@ ccflags-y += -DKSU_OPTIONAL_STRNCPY
 # by !defined(KSU_COMPAT_HAS_CURRENT_SID). Tell it the kernel already provides this.
 ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
 
+# SELinux: kernel 4.14 CAF uses struct selinux_state (extern) with selinux_state.enforcing,
+# NOT a global selinux_enforcing variable. KSUN selinux.c uses the
+# KSU_COMPAT_USE_SELINUX_STATE guard to switch to selinux_state.enforcing.
+# Also handles selinux_state.disabled (instead of global selinux_disabled).
+ccflags-y += -DKSU_COMPAT_USE_SELINUX_STATE
+
 # Local include paths for KSUN headers (klog.h, ksu.h, arch.h)
 ccflags-y += -I$(src) -I$(src)/include
 
