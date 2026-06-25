@@ -57,6 +57,11 @@ ccflags-y += -include $(src)/ksu_compat.h
 # Prevent kernel_compat.c from defining a conflicting global version.
 ccflags-y += -DKSU_OPTIONAL_STRNCPY
 
+# SELinux: kernel 4.14 CAF defines current_sid() in security/selinux/include/avc.h.
+# KSUN selinux.h includes avc.h then tries to define its own current_sid() guarded
+# by !defined(KSU_COMPAT_HAS_CURRENT_SID). Tell it the kernel already provides this.
+ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
+
 # Local include paths for KSUN headers (klog.h, ksu.h, arch.h)
 ccflags-y += -I$(src) -I$(src)/include
 
