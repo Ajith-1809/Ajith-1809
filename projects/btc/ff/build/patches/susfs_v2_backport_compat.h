@@ -17,6 +17,31 @@
 
 #include <linux/version.h>
 #include <linux/fsnotify_backend.h>
+#include <linux/bits.h>
+
+/* ===== Legacy v1.5.5 flags used by KBapna tree's kernel-side hooks =====
+ * The KBapna tree already has SUSFS v1.5.5 hooks applied to kernel source
+ * files (fs/stat.c, fs/open.c, fs/exec.c, etc.) that reference these
+ * legacy INODE_STATE_* and TASK_STRUCT_* flags. The v2.2.0 susfs_def.h
+ * does not define them. Provide them here for compilation of the hooks.
+ * These flags use bits 24+ — well above the kernel's standard inode
+ * I_* flags (bits 0-13) and task state bits.
+ */
+#ifndef INODE_STATE_SUS_PATH
+#define INODE_STATE_SUS_PATH BIT(24)
+#endif
+#ifndef INODE_STATE_SUS_MOUNT
+#define INODE_STATE_SUS_MOUNT BIT(25)
+#endif
+#ifndef INODE_STATE_SUS_KSTAT
+#define INODE_STATE_SUS_KSTAT BIT(26)
+#endif
+#ifndef INODE_STATE_OPEN_REDIRECT
+#define INODE_STATE_OPEN_REDIRECT BIT(27)
+#endif
+#ifndef TASK_STRUCT_NON_ROOT_USER_APP_PROC
+#define TASK_STRUCT_NON_ROOT_USER_APP_PROC BIT(24)
+#endif
 
 /* ===== fsnotify_ops.handle_inode_event compat =====
  * Kernel 5.0+ (approx) changed the fsnotify callback from:
