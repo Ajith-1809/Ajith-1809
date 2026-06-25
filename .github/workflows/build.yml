@@ -108,20 +108,11 @@ jobs:
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksun_v3_makefile" \
             drivers/kernelsu/Makefile
           echo "Replaced KSUN Makefile with built-in version for kernel 4.14"
-          # 3. Copy uapi headers from KSUN repo root (not inside kernel/) into
-          #    drivers/kernelsu/include/uapi/ so that #include "uapi/feature.h"
-          #    etc. resolve via -I$(src)/include in the Makefile.
-          if [ -d "KernelSU-Next/uapi" ]; then
-            cp -r KernelSU-Next/uapi drivers/kernelsu/include/
-            echo "Copied KSUN uapi headers to drivers/kernelsu/include/uapi/"
-          else
-            echo "WARN: KernelSU-Next/uapi not found"
-          fi
-          # 4. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
+          # 3. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat_pgtable.h" \
             include/linux/pgtable.h 2>/dev/null || touch include/linux/pgtable.h
           echo "Created include/linux/pgtable.h -> asm/pgtable.h alias"
-          # 5. Scan for remaining incompatibilities
+          # 4. Scan for remaining incompatibilities
           DK="drivers/kernelsu"
           echo "=== Scanning for remaining 4.14-incompatible references ==="
           for f in "$DK"/*.c "$DK"/*.h; do
