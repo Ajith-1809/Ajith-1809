@@ -22,7 +22,7 @@
 #include <linux/bits.h>
 #include <linux/threads.h>
 #include <linux/thread_info.h>
-#include <linux/uidgid.h>
+#include <linux/cred.h>
 
 /* =====================================================================
  * SECTION 1 — Legacy v1.5.5 defines (for KBapna tree's kernel hooks)
