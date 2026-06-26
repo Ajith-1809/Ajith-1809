@@ -169,12 +169,13 @@ jobs:
             echo $'		return 0;'
             echo $'	}'
           } > /tmp/reboot_supercall_block.c
-          sed -i '/^int ret = 0;/r /tmp/reboot_supercall_block.c' "$KSRC"
+          sed -i '/^[[:space:]]*int ret = 0;/r /tmp/reboot_supercall_block.c' "$KSRC"
           rm -f /tmp/reboot_supercall_block.c
 
           echo "=== Verifying $KSRC patch ==="
-          grep -n 'supercall\|0xDEADBEEF\|0xFAFAFAFA' "$KSRC" || { echo "FAIL: patch markers not found"; exit 1; }
-          echo "=== OK ==="
+          grep -q '0xDEADBEEF' "$KSRC" || { echo "FAIL: supercall dispatch not found"; exit 1; }
+          grep -q '0xFAFAFAFA' "$KSRC" || { echo "FAIL: SUSFS dispatch not found"; exit 1; }
+          echo "=== All dispatch markers present ==="
 
       - name: Backport SUSFS v2.2.0 from GKI source to kernel 4.14
         run: |
