@@ -88,21 +88,27 @@ EXPORT_SYMBOL_GPL(susfs_is_current_zygote_domain);
  * ksu_try_umount MUST do the actual umount work, NOT delegate to
  * susfs_try_umount (which would cause infinite recursion).
  *
- * On kernel 4.14, path_umount() (added in 5.9) does not exist, but
- * ksys_umount() is available as the internal backend for the umount(2)
- * syscall.  We use set_fs(KERNEL_DS) to pass a kernel pointer.
+ * On kernel 4.14, path_umount() (added in 5.9) does not exist and
+ * ksys_umount() is not exported on all CAF trees.  We use sys_umount()
+ * (the raw syscall handler) with set_fs(KERNEL_DS) to pass a kernel
+ * pointer.  Since our compat code is linked into vmlinux (not a module),
+ * we only need sys_umount to exist as a non-static kernel symbol — it
+ * does on all 4.14 trees via SYSCALL_DEFINE2(umount, ...).
  */
+
+/* Declare the raw syscall handler for umount */
+asmlinkage long sys_umount(const char __user *name, int flags);
 
 void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
 {
 	mm_segment_t old_fs;
 	int err;
 
-	/* ksys_umount() expects a __user pointer.  On kernel 4.14 we can
+	/* sys_umount() expects a __user pointer.  On kernel 4.14 we can
 	 * safely switch address limits to pass a kernel-space string. */
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = ksys_umount((const char __user *)mnt, flags);
+	err = sys_umount((const char __user *)mnt, flags);
 	set_fs(old_fs);
 
 	if (err) {
