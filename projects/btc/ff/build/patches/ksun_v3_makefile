@@ -48,8 +48,13 @@ kernelsu-y += selinux/rules.o
 obj-$(CONFIG_KSU) += kernelsu.o
 
 # Version info (used by supercall/dispatch.c and include/ksu.h)
-ccflags-y += -DKSU_VERSION=30200
-ccflags-y += -DKSU_VERSION_TAG=\"v3.2.0-legacy\"
+# KSU-Next uses KSU_VERSION = 30000 + git commit count (NOT major*10000+minor*100+patch).
+# The Kbuild file computes this from git history, but we delete Kbuild (fail-fast check).
+# Replicate the same logic here.
+KSU_GIT_VERSION := $(shell git -C $(src) rev-list --count HEAD 2>/dev/null || echo "1")
+ccflags-y += -DKSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION))
+KSU_GIT_TAG := $(shell git -C $(src) describe --tags --abbrev=0 2>/dev/null || echo "v3.2.0-legacy")
+ccflags-y += -DKSU_VERSION_TAG=\"$(KSU_GIT_TAG)\"
 
 # Force-include the kernel 4.14 compat layer (TWA flags, nofault, etc.)
 ccflags-y += -include $(src)/ksu_compat.h
