@@ -31,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/time.h>
+#include <linux/syscalls.h>
 
 /* ===== Forward declarations from fs/susfs.c =====
  * These are the real SUSFS handlers from the official kernel-4.14 branch.
@@ -80,30 +81,44 @@ bool susfs_is_current_zygote_domain(void)
 EXPORT_SYMBOL_GPL(susfs_is_current_zygote_domain);
 #endif
 
-/* ===== Try-umount stubs =====
- * KBapna's original core_hook.c provided ksu_try_umount().
- * On kernel 4.14, the underlying path_umount() syscall does NOT exist
- * (added in kernel 5.9). KBapna's own ksu_umount_mnt() returns
- * -ENOSYS on pre-5.9 kernels.  We provide the symbol so the link
- * succeeds; actual umount depends on the KBapna tree's try_umount
- * implementation in drivers/kernelsu/sucompat.c (if available).
+/* ===== Try-umount implementation =====
+ * KBapna's core_hook calls ksu_try_umount() to umount a single path.
+ * The kernel-4.14 branch's susfs_try_umount(uid) iterates over the
+ * try_umount list and calls ksu_try_umount() for EACH entry — so
+ * ksu_try_umount MUST do the actual umount work, NOT delegate to
+ * susfs_try_umount (which would cause infinite recursion).
+ *
+ * On kernel 4.14, path_umount() (added in 5.9) does not exist, but
+ * ksys_umount() is available as the internal backend for the umount(2)
+ * syscall.  We use set_fs(KERNEL_DS) to pass a kernel pointer.
  */
 
 void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
 {
-	/* No-op on kernel 4.14 — path_umount() not available.
-	 * The KBapna tree has its own ksu_umount_mnt() which we try below. */
-	extern int ksu_umount_mnt(const char *mnt);
-	if (ksu_umount_mnt)
-		ksu_umount_mnt(mnt);
+	mm_segment_t old_fs;
+	int err;
+
+	/* ksys_umount() expects a __user pointer.  On kernel 4.14 we can
+	 * safely switch address limits to pass a kernel-space string. */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	err = ksys_umount((const char __user *)mnt, flags);
+	set_fs(old_fs);
+
+	if (err) {
+		/* Not all paths are mountpoints; silence expected failures
+		 * unless logging is explicitly requested. */
+		if (err != -EINVAL && err != -ENOENT)
+			pr_debug("susfs: umount '%s' failed: %d\n", mnt, err);
+	}
 }
 EXPORT_SYMBOL_GPL(ksu_try_umount);
 
+/* susfs_try_umount_all — called from KSU core_hook on setuid events.
+ * Delegates to susfs_try_umount() in susfs.c which iterates the list
+ * and calls ksu_try_umount() per entry. */
 void susfs_try_umount_all(uid_t uid)
 {
-	/* Re-evaluate try_umount for all entries in LH_TRY_UMOUNT_PATH
-	 * against the given uid.  Called from KSU's core_hook after
-	 * a process is marked umounted. */
 	susfs_try_umount(uid);
 }
 EXPORT_SYMBOL_GPL(susfs_try_umount_all);
@@ -199,18 +214,27 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)arg);
 		break;
 
-	/* ============ SUS_SU ============ */
+	/* ============ SUS_SU ============
+	 * sus_su mode switching is guarded by CONFIG_KSU_SUSFS_SUS_SU.
+	 * We only compile the dispatch calls when the config is enabled.
+	 * When disabled (the default), users get -EOPNOTSUPP. */
+#ifdef CONFIG_KSU_SUSFS_SUS_SU
 	case CMD_SUSFS_SUS_SU:
 		ret = susfs_sus_su((struct st_sus_su __user *)arg);
 		break;
-
 	case CMD_SUSFS_IS_SUS_SU_READY:
 		ret = susfs_get_sus_su_working_mode();
 		break;
-
 	case CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE:
 		ret = susfs_get_sus_su_working_mode();
 		break;
+#else
+	case CMD_SUSFS_SUS_SU:
+	case CMD_SUSFS_IS_SUS_SU_READY:
+	case CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE:
+		ret = -EOPNOTSUPP;
+		break;
+#endif
 
 	/* ============ SHOW commands ============ */
 	case CMD_SUSFS_SHOW_VERSION: {
