@@ -90,14 +90,11 @@ EXPORT_SYMBOL_GPL(susfs_is_current_zygote_domain);
  *
  * On kernel 4.14, path_umount() (added in 5.9) does not exist and
  * ksys_umount() is not exported on all CAF trees.  We use sys_umount()
- * (the raw syscall handler) with set_fs(KERNEL_DS) to pass a kernel
- * pointer.  Since our compat code is linked into vmlinux (not a module),
- * we only need sys_umount to exist as a non-static kernel symbol — it
- * does on all 4.14 trees via SYSCALL_DEFINE2(umount, ...).
+ * (the raw syscall handler from SYSCALL_DEFINE2(umount, ...), already
+ * declared in <linux/syscalls.h>) with set_fs(KERNEL_DS) to pass a
+ * kernel pointer.  Since our compat code is linked into vmlinux (not
+ * a module), the reference resolves at link time.
  */
-
-/* Declare the raw syscall handler for umount */
-asmlinkage long sys_umount(const char __user *name, int flags);
 
 void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
 {
@@ -105,10 +102,12 @@ void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
 	int err;
 
 	/* sys_umount() expects a __user pointer.  On kernel 4.14 we can
-	 * safely switch address limits to pass a kernel-space string. */
+	 * safely switch address limits to pass a kernel-space string.
+	 * The function is declared in <linux/syscalls.h> as:
+	 *   asmlinkage long sys_umount(char __user *name, int flags); */
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = sys_umount((const char __user *)mnt, flags);
+	err = sys_umount((char __user *)mnt, flags);
 	set_fs(old_fs);
 
 	if (err) {
