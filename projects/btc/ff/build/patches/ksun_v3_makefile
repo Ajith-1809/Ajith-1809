@@ -77,10 +77,10 @@ ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 ccflags-y += -I$(objtree)/security/selinux
 
 # Manager APK signature verification (used by apk_sign.c)
-# Default values from upstream Kbuild (v3.2.0-legacy)
-ccflags-y += -DEXPECTED_MANAGER_SIZE=0x3e6
-ccflags-y += -DEXPECTED_MANAGER_HASH=\"79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7\"
-ccflags-y += -DKSU_MANAGER_PACKAGE=\"me.weishu.kernelsu\"
+# KSU-Next v3.2.0 Manager (com.rifsxd.ksunext) — pulled from device
+ccflags-y += -DEXPECTED_MANAGER_SIZE=0x9c0f38
+ccflags-y += -DEXPECTED_MANAGER_HASH=\"96c2bbbf1b973461fe82dd1ed17f89deb86a6a5a9d7c4cf079bd32091131ef57\"
+ccflags-y += -DKSU_MANAGER_PACKAGE=\"com.rifsxd.ksunext\"
 
 # Suppress warnings from KSUN upstream code (harmless on non-GKI kernels)
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
