@@ -48,7 +48,7 @@ kernelsu-y += selinux/rules.o
 obj-$(CONFIG_KSU) += kernelsu.o
 
 # Version info (used by supercall/dispatch.c and include/ksu.h)
-ccflags-y += -DKSU_VERSION=11998
+ccflags-y += -DKSU_VERSION=30200
 ccflags-y += -DKSU_VERSION_TAG=\"v3.2.0-legacy\"
 
 # Force-include the kernel 4.14 compat layer (TWA flags, nofault, etc.)
