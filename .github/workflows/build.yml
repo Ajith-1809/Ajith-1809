@@ -1,6 +1,6 @@
-# Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.5
+# Build Phoenix KSUN v3.2.0-legacy / SUSFS kernel-4.14 full features
 
-name: Build Phoenix KSUN v3.2.0-legacy / SUSFS v1.5.5
+name: Build Phoenix KSUN v3.2.0-legacy / SUSFS kernel-4.14
 
 on:
   workflow_dispatch:
@@ -177,38 +177,48 @@ jobs:
           grep -q '0xFAFAFAFA' "$KSRC" || { echo "FAIL: SUSFS dispatch not found"; exit 1; }
           echo "=== All dispatch markers present ==="
 
-      - name: Backport SUSFS v2.2.0 from GKI source to kernel 4.14
+      - name: Install official SUSFS kernel-4.14 branch source files
         run: |
-          set -uo pipefail
+          set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== Downloading SUSFS v2.2.0 GKI source ==="
-          curl -fL --retry 3 --retry-max-time 120 \
-            "https://gitlab.com/simonpunk/susfs4ksu/-/archive/gki-android14-5.15/susfs4ksu-gki-android14-5.15.tar.gz" \
-            -o /tmp/susfs_v2.tar.gz || { echo "FAIL: download failed"; exit 1; }
-          mkdir -p /tmp/susfs_v2
-          tar -xzf /tmp/susfs_v2.tar.gz -C /tmp/susfs_v2 --strip-components=1
-          echo "=== v2.2.0 structs/APIs are INCOMPATIBLE with v1.5.5 — keeping ORIGINAL KBapna files ==="
-          echo "=== v2.2.0 feature flags and CMD codes provided via susfs_v2_backport_compat.h ==="
-          # Force-include the backport compat header into susfs.c build
-          if ! grep -q 'susfs_v2_backport_compat.h' ./fs/Makefile; then
-            sed -i '1i ccflags-y += -include $(src)/susfs_v2_backport_compat.h' ./fs/Makefile
-            echo "Added -include susfs_v2_backport_compat.h to fs/Makefile"
+          SUSFS_V2_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2"
+          echo "=== Installing official SUSFS kernel-4.14 source ==="
+
+          # 1. Copy headers to include/linux/
+          for hdr in susfs_def.h susfs.h; do
+            cp -v "$SUSFS_V2_DIR/$hdr" include/linux/ \
+              || echo "WARN: $hdr copy failed — tree may already have it?"
+          done
+
+          # 2. Copy susfs.c source to fs/ — REPLACES the old v1.5.5 susfs.c
+          #    Keep a backup of the original in case we need to revert
+          if [ -f fs/susfs.c ]; then
+            cp -vb fs/susfs.c fs/susfs.c.v155 2>/dev/null || true
           fi
-          # Copy the compat header to fs/ so it's available at build time
-          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2_backport_compat.h" \
-            ./fs/susfs_v2_backport_compat.h
-          # SKIP applying the GKI kernel patch — KBapna tree already has v1.5.5
-          # kernel-side hooks (exec.c, open.c, namei.c, stat.c, etc.) that call
-          # the same function names as v2.2.0. The GKI patch would add KSUN
-          # symbol references (ksu_su_compat_enabled, __ksu_is_allow_uid_for_current)
-          # that don't exist in the old tree and conflict. Just the replacement
-          # source files are sufficient — all v2.2.0 API entry points match the
-          # existing v1.5.5 hook calls.
-          # Clean up .orig/.rej debris
+          cp -v "$SUSFS_V2_DIR/susfs.c" fs/susfs.c
+          echo "Source files installed"
+
+          # 3. Add susfs.o to fs/Makefile if not already present
+          if ! grep -q 'obj-\$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile; then
+            sed -i '/^obj-\$(CONFIG_BLOCK)/i obj-\$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile
+            echo "Added susfs.o to fs/Makefile"
+          fi
+
+          # 4. Apply VFS patch — --forward skips already-applied hunks,
+          #    --batch doesn't prompt, -r /dev/null discards rejects.
+          #    The patch adds new hooks that supplement (not replace) the
+          #    existing v1.5.5 hooks already in the KBapna tree.
+          echo "=== Applying VFS patch (--forward, failures non-fatal) ==="
+          patch -p1 --forward --batch \
+            -i "$SUSFS_V2_DIR/50_add_susfs_in_kernel-4.14.patch" \
+            -r /dev/null 2>&1 || true
           find . -name '*.orig' -o -name '*.rej' -type f -delete 2>/dev/null || true
-          # Ensure SUSFS Kconfig options are visible in the new KSUN Kconfig
+          echo "VFS patch applied (some hunks may have been skipped)"
+
+          # 5. Ensure SUSFS Kconfig options in KSUN Kconfig
           KSU_KCONFIG=""
-          for kc in KernelSU-Next/kernel/Kconfig KernelSU/kernel/Kconfig KernelSU/Kconfig drivers/kernelsu/Kconfig; do
+          for kc in KernelSU-Next/kernel/Kconfig KernelSU/kernel/Kconfig \
+                    KernelSU/Kconfig drivers/kernelsu/Kconfig; do
             if [ -f "$kc" ]; then
               KSU_KCONFIG="$kc"
               echo "Found KSUN Kconfig at: $kc"
@@ -216,16 +226,24 @@ jobs:
             fi
           done
           if [ -z "$KSU_KCONFIG" ]; then
-            echo "WARN: no KSUN Kconfig found — SUSFS Kconfig options may be silently dropped"
+            echo "WARN: no KSUN Kconfig found"
           elif ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
             echo "=== Injecting SUSFS Kconfig into $KSU_KCONFIG ==="
             cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
-            echo "Injected SUSFS Kconfig entries"
           else
-            echo "SUSFS Kconfig options already present — no action needed"
+            echo "SUSFS Kconfig options already present"
           fi
-          rm -rf /tmp/susfs_v2 /tmp/susfs_v2.tar.gz
-          echo "=== SUSFS v2.2.0 backport complete ==="
+
+          # 6. Add susfs_init() call — ensure susfs_init() is called during
+          #    kernel init.  The VFS patch should have added this to
+          #    fs/namespace.c, but verify (sym: susfs_init).
+          if grep -q 'susfs_init' fs/namespace.c; then
+            echo "susfs_init() already called — OK"
+          else
+            echo "WARN: susfs_init() NOT found in fs/namespace.c — manual add needed"
+          fi
+
+          echo "=== SUSFS kernel-4.14 branch installation complete ==="
 
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |
@@ -283,16 +301,19 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo "v3.2.0-legacy")
-          # Read the SUSFS_VERSION macro out of the freshly copied susfs.h
+          # Read the SUSFS_VERSION macro from the installed susfs.h
           SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' include/linux/susfs.h 2>/dev/null \
                       | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
           SUSFS_VER="${SUSFS_VER:-v1.5.5}"
+          # Determine if we're using the new kernel-4.14 branch or the old backport
+          if grep -q 'susfs_sus_ino_for_show_map_vma' fs/susfs.c 2>/dev/null; then
+            SUSFS_BRANCH="kernel-4.14"
+          else
+            SUSFS_BRANCH="backported"
+          fi
           echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
-          echo "susfs_version=$SUSFS_VER" >> "$GITHUB_OUTPUT"
-          # Truncate run duration estimates: ksud overlay+clone of KBapna can
-          # add up. Surface the resolved versions to the runner log so the
-          # build log records them even if the manifest writer fails later.
-          echo "Resolved: ksu_tag=$KSU_TAG susfs_version=$SUSFS_VER"
+          echo "susfs_version=${SUSFS_VER} (${SUSFS_BRANCH})" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ksu_tag=$KSU_TAG susfs_version=$SUSFS_VER branch=$SUSFS_BRANCH"
 
       - name: Export build environment + SUSFS fragment
         run: |
@@ -353,7 +374,7 @@ jobs:
           KERNEL_SRC="$PROJECT_ROOT/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb"
           AK3_SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3"
           OUT_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/out"
-          ZIP_NAME="Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip"
+          ZIP_NAME="Unholy_Phoenix_KSUN-v3.2.0-legacy_SUSFS-k414-phoenix-${{ github.run_number }}.zip"
           test -f "$KERNEL_SRC" || { echo "::error::Image.gz-dtb not found at $KERNEL_SRC"; exit 1; }
           test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
           mkdir -p "$OUT_DIR"

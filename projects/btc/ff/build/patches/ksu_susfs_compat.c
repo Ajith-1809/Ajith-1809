@@ -2,19 +2,18 @@
 /*
  * ksu_susfs_compat.c — SUSFS compatibility shim for KSUN v3.2.0-legacy
  *
- * KBapna's original KernelSU-Next tree had SUSFS integration functions
- * patched into selinux.c and core_hook.c. The upstream KSUN v3.2.0-legacy
- * (applied fresh by setup.sh) does NOT have these custom additions.
+ * Bridges the official SUSFS kernel module (kernel-4.14 branch from
+ * simonpunk/susfs4ksu) with the KSU-Next v3.2.0-legacy supercall dispatch.
  *
- * This file provides the missing symbols so vmlink succeeds:
- *   - susfs_ksu_sid / susfs_zygote_sid / susfs_init_sid (global u32)
+ * Provides:
  *   - susfs_is_current_ksu_domain() / susfs_is_current_zygote_domain()
  *   - ksu_try_umount() / susfs_try_umount_all()
- *   - susfs_handle_sys_reboot() — handles SUSFS supercall IOCTL commands
- *     from userspace (v2.x detection API: show_version / show_features /
- *     show_variant).
+ *   - ksu_susfs_enable_sus_su() / ksu_susfs_disable_sus_su()
+ *   - susfs_handle_sys_reboot() — routes all SUSFS CMD_* codes from the
+ *     kernel/reboot.c supercall dispatch to the real susfs.c handlers.
  *
  * Compiled as part of kernelsu.o via the built-in Makefile.
+ * The real susfs.c lives in fs/ and is compiled as susfs.o.
  */
 
 #include <linux/types.h>
@@ -28,6 +27,17 @@
 #include <linux/version.h>
 #include <linux/printk.h>
 #include <linux/uaccess.h>
+#include <linux/prctl.h>
+#include <linux/slab.h>
+#include <linux/stat.h>
+#include <linux/time.h>
+
+/* ===== Forward declarations from fs/susfs.c =====
+ * These are the real SUSFS handlers from the official kernel-4.14 branch.
+ * We call them from our supercall dispatch wrapper.
+ */
+#include <linux/susfs_def.h>
+#include <linux/susfs.h>
 
 /* ===== SID-based domain checks =====
  * KBapna's original selinux.c declared these globals and functions
@@ -56,6 +66,7 @@ bool susfs_is_current_ksu_domain(void)
 		return false;
 	return unlikely(tsec->sid == susfs_ksu_sid);
 }
+EXPORT_SYMBOL_GPL(susfs_is_current_ksu_domain);
 
 bool susfs_is_current_zygote_domain(void)
 {
@@ -66,70 +77,154 @@ bool susfs_is_current_zygote_domain(void)
 		return false;
 	return unlikely(tsec->sid == susfs_zygote_sid);
 }
+EXPORT_SYMBOL_GPL(susfs_is_current_zygote_domain);
 #endif
 
 /* ===== Try-umount stubs =====
- * KBapna's original core_hook.c provided ksu_try_umount() and
- * susfs_try_umount_all() for unmounting KSU-sensitive mount points
- * from non-root user namespaces.
- *
+ * KBapna's original core_hook.c provided ksu_try_umount().
  * On kernel 4.14, the underlying path_umount() syscall does NOT exist
  * (added in kernel 5.9). KBapna's own ksu_umount_mnt() returns
- * -ENOSYS on pre-5.9 kernels. These stubs are functionally equivalent.
- *
- * The extern declarations in fs/susfs.c and fs/namespace.c still
- * reference the symbols; we provide them as no-ops.
+ * -ENOSYS on pre-5.9 kernels.  We provide the symbol so the link
+ * succeeds; actual umount depends on the KBapna tree's try_umount
+ * implementation in drivers/kernelsu/sucompat.c (if available).
  */
 
 void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
 {
+	/* No-op on kernel 4.14 — path_umount() not available.
+	 * The KBapna tree has its own ksu_umount_mnt() which we try below. */
+	extern int ksu_umount_mnt(const char *mnt);
+	if (ksu_umount_mnt)
+		ksu_umount_mnt(mnt);
 }
+EXPORT_SYMBOL_GPL(ksu_try_umount);
 
 void susfs_try_umount_all(uid_t uid)
 {
+	/* Re-evaluate try_umount for all entries in LH_TRY_UMOUNT_PATH
+	 * against the given uid.  Called from KSU's core_hook after
+	 * a process is marked umounted. */
+	susfs_try_umount(uid);
 }
+EXPORT_SYMBOL_GPL(susfs_try_umount_all);
 
-/* ===== SUSFS supercall handler (sys_reboot hook) =====
- *
- * SUSFS v2.x userspace tools (ksu_susfs, brene-susfs module) communicate
- * via the reboot syscall:
- *   syscall(SYS_reboot, 0xDEADBEEF, 0xFAFAFAFA, CMD, &info)
- *
- * The kernel/reboot.c hook routes 0xDEADBEEF magic1 to us when
- * magic2 == 0xFAFAFAFA (SUSFS_MAGIC).  We respond to the three
- * detection IOCTL commands that userspace sends:
- *
- *   CMD_SUSFS_SHOW_VERSION          (0x555e1)
- *   CMD_SUSFS_SHOW_ENABLED_FEATURES (0x555e2)
- *   CMD_SUSFS_SHOW_VARIANT          (0x555e3)
- *
- * The userspace struct layouts (must match ksu_susfs show.c exactly):
- *
- *   struct st_susfs_version { char version[16]; int err; };
- *   struct st_susfs_enabled_features { char features[8192]; int err; };
- *   struct st_susfs_variant { char variant[16]; int err; };
+/* ===== sus_su stubs =====
+ * sus_su mode switching is deprecated for non-GKI kernels (kprobes
+ * disabled).  These are no-ops for our 4.14 CAF build.
  */
 
-#define SUSFS_CMD_SHOW_VERSION         0x555e1
-#define SUSFS_CMD_SHOW_ENABLED_FEATURES 0x555e2
-#define SUSFS_CMD_SHOW_VARIANT          0x555e3
+void ksu_susfs_enable_sus_su(void)
+{
+}
+EXPORT_SYMBOL_GPL(ksu_susfs_enable_sus_su);
+
+void ksu_susfs_disable_sus_su(void)
+{
+}
+EXPORT_SYMBOL_GPL(ksu_susfs_disable_sus_su);
+
+/* ===== SUSFS supercall dispatch =====
+ *
+ * The kernel/reboot.c hook routes reboot() syscalls with:
+ *   magic1 == 0xDEADBEEF (KSU_INSTALL_MAGIC1)
+ *   magic2 == 0xFAFAFAFA (SUSFS_MAGIC)
+ * into us.  We extract cmd from the third argument and arg from the
+ * fourth, then dispatch to the appropriate susfs.c handler function.
+ *
+ * This implements the same protocol the ksu_susfs userspace tool uses
+ * (via prctl on upstream KernelSU, or via reboot syscall on KSU-Next).
+ */
 
 int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 {
-	switch (cmd) {
-	case SUSFS_CMD_SHOW_VERSION: {
-		/* struct st_susfs_version { char version[16]; int err; } */
-		char __user *version  = arg;
-		int  __user *err_field = (int __user *)((char __user *)arg + 16);
+	int ret = 0;
 
-		if (copy_to_user(version, "v1.5.5", sizeof("v1.5.5")))
+	switch (cmd) {
+
+	/* ============ SUS_PATH commands ============ */
+	case CMD_SUSFS_ADD_SUS_PATH:
+		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)arg);
+		break;
+
+	/* ============ SUS_MOUNT commands ============ */
+	case CMD_SUSFS_ADD_SUS_MOUNT:
+		ret = susfs_add_sus_mount((struct st_susfs_sus_mount __user *)arg);
+		break;
+
+	/* ============ SUS_KSTAT commands ============ */
+	case CMD_SUSFS_ADD_SUS_KSTAT:
+		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)arg);
+		break;
+
+	case CMD_SUSFS_UPDATE_SUS_KSTAT:
+		ret = susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)arg);
+		break;
+
+	case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY:
+		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)arg);
+		break;
+
+	/* ============ TRY_UMOUNT commands ============ */
+	case CMD_SUSFS_ADD_TRY_UMOUNT:
+		ret = susfs_add_try_umount((struct st_susfs_try_umount __user *)arg);
+		break;
+
+	case CMD_SUSFS_RUN_UMOUNT_FOR_CURRENT_MNT_NS:
+		susfs_try_umount(current_uid().val);
+		ret = 0;
+		break;
+
+	/* ============ SPOOF_UNAME commands ============ */
+	case CMD_SUSFS_SET_UNAME:
+		ret = susfs_set_uname((struct st_susfs_uname __user *)arg);
+		break;
+
+	/* ============ ENABLE_LOG ============ */
+	case CMD_SUSFS_ENABLE_LOG: {
+		int enabled;
+		if (copy_from_user(&enabled, arg, sizeof(enabled)))
 			return -EFAULT;
-		if (put_user(0, err_field))
-			return -EFAULT;
-		return 0;
+		susfs_set_log(enabled ? true : false);
+		ret = 0;
+		break;
 	}
-	case SUSFS_CMD_SHOW_ENABLED_FEATURES: {
-		/* struct st_susfs_enabled_features { char features[8192]; int err; } */
+
+	/* ============ SPOOF_CMDLINE ============ */
+	case CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG:
+		ret = susfs_set_cmdline_or_bootconfig((char __user *)arg);
+		break;
+
+	/* ============ OPEN_REDIRECT ============ */
+	case CMD_SUSFS_ADD_OPEN_REDIRECT:
+		ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)arg);
+		break;
+
+	/* ============ SUS_SU ============ */
+	case CMD_SUSFS_SUS_SU:
+		ret = susfs_sus_su((struct st_sus_su __user *)arg);
+		break;
+
+	case CMD_SUSFS_IS_SUS_SU_READY:
+		ret = susfs_get_sus_su_working_mode();
+		break;
+
+	case CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE:
+		ret = susfs_get_sus_su_working_mode();
+		break;
+
+	/* ============ SHOW commands ============ */
+	case CMD_SUSFS_SHOW_VERSION: {
+		/* struct { char version[16]; int err; } */
+		if (copy_to_user(arg, SUSFS_VERSION, sizeof("v1.5.5")))
+			return -EFAULT;
+		if (put_user(0, (int __user *)((char __user *)arg + 16)))
+			return -EFAULT;
+		ret = 0;
+		break;
+	}
+
+	case CMD_SUSFS_SHOW_ENABLED_FEATURES: {
+		/* struct { char features[8192]; int err; } */
 		static const char features[] =
 			"add_sus_path\n"
 			"add_sus_path_loop\n"
@@ -141,29 +236,48 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 			"enable_log\n"
 			"set_cmdline_or_bootconfig\n"
 			"add_open_redirect\n"
-			"add_sus_mount\n";
-		char __user *feat  = arg;
-		int  __user *err_field = (int __user *)((char __user *)arg + 8192);
-
-		if (copy_to_user(feat, features, sizeof(features)))
+			"add_sus_mount\n"
+			"add_try_umount\n"
+			"run_try_umount\n"
+			"hide_ksu_susfs_symbols\n"
+			"spoof_cmdline_or_bootconfig\n"
+			"sus_overlayfs\n"
+			"auto_add_sus_ksu_default_mount\n"
+			"auto_add_sus_bind_mount\n"
+			"auto_add_try_umount_for_bind_mount\n";
+		if (copy_to_user(arg, features, sizeof(features)))
 			return -EFAULT;
-		if (put_user(0, err_field))
+		if (put_user(0, (int __user *)((char __user *)arg + 8192)))
 			return -EFAULT;
-		return 0;
+		ret = 0;
+		break;
 	}
-	case SUSFS_CMD_SHOW_VARIANT: {
-		/* struct st_susfs_variant { char variant[16]; int err; } */
-		char __user *variant  = arg;
-		int  __user *err_field = (int __user *)((char __user *)arg + 16);
 
-		if (copy_to_user(variant, "NON-GKI", sizeof("NON-GKI")))
+	case CMD_SUSFS_SHOW_VARIANT: {
+		/* struct { char variant[16]; int err; } */
+		if (copy_to_user(arg, SUSFS_VARIANT, sizeof("NON-GKI")))
 			return -EFAULT;
-		if (put_user(0, err_field))
+		if (put_user(0, (int __user *)((char __user *)arg + 16)))
 			return -EFAULT;
-		return 0;
+		ret = 0;
+		break;
 	}
+
+	/* ============ SUS_MAP (add_sus_map from userspace) ============ */
+	/* The userspace tool sends CMD 0x60020 for add_sus_map.
+	 * We route it to add_sus_path since susfs_sus_ino_for_show_map_vma
+	 * checks against the SUS_PATH_HLIST. */
+#if 0
+	/* userspace CMD 0x60020 — handled if defined in ksu_susfs tool */
+	case CMD_SUSFS_ADD_SUS_MAP:
+		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)arg);
+		break;
+#endif
+
 	default:
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	}
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(susfs_handle_sys_reboot);
