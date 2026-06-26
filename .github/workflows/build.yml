@@ -154,19 +154,22 @@ jobs:
           sed -i '/^#include <linux\/uaccess.h>/r /tmp/reboot_extern_decls.c' "$KSRC"
           rm -f /tmp/reboot_extern_decls.c
 
-          # 2. Insert the supercall dispatch block after "return -EPERM;" but before
-          #    the LINUX_REBOOT_MAGIC1 check.  Use bash $'...' strings so \t becomes
-          #    a literal tab character matching the kernel's coding style.
+          # 2. Insert the supercall dispatch block at the START of the function body,
+          #    BEFORE the capability check (ns_capable(CAP_SYS_BOOT)).
+          #    The CAP_SYS_BOOT check blocks non-root processes (like KSU-Next
+          #    Manager's libksud.so), so the supercall must go first.
+          #    Use bash $'...' strings so 	 becomes a literal tab character.
           {
-            echo $'\t/* KSU/SUSFS supercall: check for KSU_INSTALL_MAGIC1 (0xDEADBEEF) */'
-            echo $'\tif (magic1 == 0xDEADBEEF) {'
-            echo $'\t\tif (magic2 == 0xFAFAFAFA)'
-            echo $'\t\t\treturn susfs_handle_sys_reboot(cmd, arg);'
-            echo $'\t\tksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);'
-            echo $'\t\treturn 0;'
-            echo $'\t}'
+            echo $'	/* KSU/SUSFS supercall: dispatch BEFORE capability check */'
+            echo $'	/* so app processes (e.g. KSU-Next Manager) can interact.    */'
+            echo $'	if (magic1 == 0xDEADBEEF) {'
+            echo $'		if (magic2 == 0xFAFAFAFA)'
+            echo $'			return susfs_handle_sys_reboot(cmd, arg);'
+            echo $'		ksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);'
+            echo $'		return 0;'
+            echo $'	}'
           } > /tmp/reboot_supercall_block.c
-          sed -i '/return -EPERM;/r /tmp/reboot_supercall_block.c' "$KSRC"
+          sed -i '/^int ret = 0;/r /tmp/reboot_supercall_block.c' "$KSRC"
           rm -f /tmp/reboot_supercall_block.c
 
           echo "=== Verifying $KSRC patch ==="
