@@ -416,7 +416,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: anykernel3-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSU-Next_v3.2.0-legacy_SUSFS_v1.5.5-phoenix-${{ github.run_number }}.zip
+          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSUN-v3.2.0-legacy_SUSFS-k414-phoenix-${{ github.run_number }}.zip
           retention-days: 30
 
   adb-pull:
