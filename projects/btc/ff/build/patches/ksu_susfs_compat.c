@@ -143,6 +143,13 @@ void ksu_susfs_disable_sus_su(void)
 }
 EXPORT_SYMBOL_GPL(ksu_susfs_disable_sus_su);
 
+/* CMD_SUSFS_ADD_SUS_MAP is defined in susfs_v2_backport_compat.h but that
+ * header is only force-included for susfs.o (fs/Makefile), not for this file
+ * (compiled as part of kernelsu.o).  Define it here as a fallback. */
+#ifndef CMD_SUSFS_ADD_SUS_MAP
+#define CMD_SUSFS_ADD_SUS_MAP 0x60020
+#endif
+
 /* ===== SUSFS supercall dispatch =====
  *
  * The kernel/reboot.c hook routes reboot() syscalls with:
@@ -158,13 +165,28 @@ EXPORT_SYMBOL_GPL(ksu_susfs_disable_sus_su);
 int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 {
 	int ret = 0;
+	mm_segment_t old_fs;
 
 	switch (cmd) {
 
 	/* ============ SUS_PATH commands ============ */
-	case CMD_SUSFS_ADD_SUS_PATH:
-		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)arg);
+	case CMD_SUSFS_ADD_SUS_PATH: {
+		/* Old v1.5.5 tool sends struct WITHOUT target_ino
+		 * (pathname at offset 0). Kernel-4.14 branch expects
+		 * target_ino first. Read old pathname, build proper
+		 * struct, forward via set_fs(KERNEL_DS). */
+		struct st_susfs_sus_path _info;
+		char _oldp[SUSFS_MAX_LEN_PATHNAME];
+		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+			return -EFAULT;
+		memset(&_info, 0, sizeof(_info));
+		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
 	/* ============ SUS_MOUNT commands ============ */
 	case CMD_SUSFS_ADD_SUS_MOUNT:
@@ -172,17 +194,50 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	/* ============ SUS_KSTAT commands ============ */
-	case CMD_SUSFS_ADD_SUS_KSTAT:
-		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)arg);
+	case CMD_SUSFS_ADD_SUS_KSTAT: {
+		/* Old tool sends struct WITHOUT target_ino/is_statically.
+		 * New struct has: int + padding + unsigned long + pathname.
+		 * Read old pathname, build proper struct, forward via KERNEL_DS. */
+		struct st_susfs_sus_kstat _info;
+		char _oldp[SUSFS_MAX_LEN_PATHNAME];
+		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+			return -EFAULT;
+		memset(&_info, 0, sizeof(_info));
+		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
-	case CMD_SUSFS_UPDATE_SUS_KSTAT:
-		ret = susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)arg);
+	case CMD_SUSFS_UPDATE_SUS_KSTAT: {
+		struct st_susfs_sus_kstat _info;
+		char _oldp[SUSFS_MAX_LEN_PATHNAME];
+		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+			return -EFAULT;
+		memset(&_info, 0, sizeof(_info));
+		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
-	case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY:
-		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)arg);
+	case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY: {
+		struct st_susfs_sus_kstat _info;
+		char _oldp[SUSFS_MAX_LEN_PATHNAME];
+		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+			return -EFAULT;
+		memset(&_info, 0, sizeof(_info));
+		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
 	/* ============ TRY_UMOUNT commands ============ */
 	case CMD_SUSFS_ADD_TRY_UMOUNT:
@@ -215,9 +270,22 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	/* ============ OPEN_REDIRECT ============ */
-	case CMD_SUSFS_ADD_OPEN_REDIRECT:
-		ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)arg);
+	case CMD_SUSFS_ADD_OPEN_REDIRECT: {
+		/* Old tool sends struct WITHOUT target_ino.
+		 * New struct has target_ino first; read old pathnames
+		 * and forward via KERNEL_DS. */
+		struct st_susfs_open_redirect _info;
+		char _oldp[SUSFS_MAX_LEN_PATHNAME * 2];
+		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+			return -EFAULT;
+		memset(&_info, 0, sizeof(_info));
+		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
 	/* ============ SUS_SU ============
 	 * sus_su mode switching is guarded by CONFIG_KSU_SUSFS_SUS_SU.
@@ -273,7 +341,8 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 			"sus_overlayfs\n"
 			"auto_add_sus_ksu_default_mount\n"
 			"auto_add_sus_bind_mount\n"
-			"auto_add_try_umount_for_bind_mount\n";
+			"auto_add_try_umount_for_bind_mount\n"
+			"add_sus_map\n";
 		if (copy_to_user(arg, features, sizeof(features)))
 			return -EFAULT;
 		if (put_user(0, (int __user *)((char __user *)arg + 8192)))
@@ -295,13 +364,22 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ SUS_MAP (add_sus_map from userspace) ============ */
 	/* The userspace tool sends CMD 0x60020 for add_sus_map.
 	 * We route it to add_sus_path since susfs_sus_ino_for_show_map_vma
-	 * checks against the SUS_PATH_HLIST. */
-#if 0
-	/* userspace CMD 0x60020 — handled if defined in ksu_susfs tool */
-	case CMD_SUSFS_ADD_SUS_MAP:
-		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)arg);
+	 * checks against the SUS_PATH_HLIST.
+	 * Same struct compat pattern: old tool sends pathname at offset 0
+	 * (no target_ino), new struct expects target_ino at offset 0. */
+	case CMD_SUSFS_ADD_SUS_MAP: {
+		struct st_susfs_sus_path _info;
+		char _oldp[SUSFS_MAX_LEN_PATHNAME];
+		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+			return -EFAULT;
+		memset(&_info, 0, sizeof(_info));
+		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)&_info);
+		set_fs(old_fs);
 		break;
-#endif
+	}
 
 	default:
 		return -EOPNOTSUPP;
