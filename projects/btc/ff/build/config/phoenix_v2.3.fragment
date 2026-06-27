@@ -1,5 +1,7 @@
 CONFIG_KSU=y
 CONFIG_KSU_DEBUG=y
+# Main SUSFS toggle — must be set BEFORE sub-options so fs/susfs.c compiles
+CONFIG_KSU_SUSFS=y
 # Use kprobes hook mode instead of MANUAL_HOOK. On this kernel (4.14 CAF),
 # kprobes works reliably and avoids the reboot.c supercall dispatch patch
 # which conflicts with the KBapna tree's existing hook layout.
