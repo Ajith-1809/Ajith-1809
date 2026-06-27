@@ -163,6 +163,22 @@ int susfs_hide_sus_mnts_for_non_su_procs(bool enabled)
 }
 EXPORT_SYMBOL_GPL(susfs_hide_sus_mnts_for_non_su_procs);
 
+/* ===== SUSFS initialization =====
+ * The kernel-4.14 branch's susfs.c defines void susfs_init(void) but
+ * has NO module_init/late_initcall — so it's NEVER called on boot.
+ * This means susfs_spin_lock, uname init, etc. are skipped.
+ * We call it here since this file compiles into the same vmlinux.
+ */
+static int __init ksu_susfs_compat_init(void)
+{
+#ifdef CONFIG_KSU_SUSFS
+	susfs_init();
+	pr_info("ksu_susfs_compat: SUSFS initialized via late_initcall\n");
+#endif
+	return 0;
+}
+late_initcall(ksu_susfs_compat_init);
+
 /* ===== SUSFS supercall dispatch =====
  *
  * The kernel/reboot.c hook routes reboot() syscalls with:
