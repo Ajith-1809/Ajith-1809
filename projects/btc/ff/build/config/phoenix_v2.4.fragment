@@ -2,6 +2,10 @@
 # Appended to vendor/phoenix_defconfig before olddefconfig
 # This enables all SUSFS features including GKI backport features
 
+# Kernel core features needed by KSU kprobe hooks
+CONFIG_KPROBES=y
+CONFIG_KALLSYMS=y
+
 # KernelSU core (always needed)
 CONFIG_KSU=y
 CONFIG_KSU_SUSFS=y
