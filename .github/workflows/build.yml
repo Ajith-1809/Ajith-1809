@@ -55,6 +55,20 @@ jobs:
           echo "Kernel version: $(head -5 Makefile | grep VERSION || true)"
           echo "PATCHLEVEL: $(grep "^PATCHLEVEL" Makefile || true)"
 
+      - name: Patch compiler_types.h for __has_attribute (GCC 13+ compat)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Patching compiler_types.h for __has_attribute GCC compat ==="
+          if grep -q "__has_attribute" include/linux/compiler_types.h; then
+            printf '%s\n' '#ifndef __has_attribute' '#define __has_attribute(x) 0' '#endif' \
+              | cat - include/linux/compiler_types.h > /tmp/compiler_types.h
+            mv /tmp/compiler_types.h include/linux/compiler_types.h
+            echo "Added __has_attribute compat guard"
+          else
+            echo "__has_attribute not present — no patch needed"
+          fi
+
       - name: Fetch SUSFS kernel-4.14 source from GitLab
         run: |
           set -euo pipefail
