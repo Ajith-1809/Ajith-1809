@@ -143,12 +143,25 @@ void ksu_susfs_disable_sus_su(void)
 }
 EXPORT_SYMBOL_GPL(ksu_susfs_disable_sus_su);
 
-/* CMD_SUSFS_ADD_SUS_MAP is defined in susfs_v2_backport_compat.h but that
- * header is only force-included for susfs.o (fs/Makefile), not for this file
- * (compiled as part of kernelsu.o).  Define it here as a fallback. */
-#ifndef CMD_SUSFS_ADD_SUS_MAP
-#define CMD_SUSFS_ADD_SUS_MAP 0x60020
-#endif
+/* ===== GKI-backported feature stubs =====
+ * These features exist in the GKI susfs branch but not in kernel-4.14.
+ * Provide stub implementations so the SUSFS userspace tool (brene etc.)
+ * detects them as "available" rather than "not supported" (-EOPNOTSUPP).
+ */
+
+/* AVC log spoofing: no-op on 4.14 (avc_log path isn't hooked this way). */
+int susfs_enable_avc_log_spoofing(bool enabled)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(susfs_enable_avc_log_spoofing);
+
+/* Hide sus mounts for non-su processes: no-op on 4.14. */
+int susfs_hide_sus_mnts_for_non_su_procs(bool enabled)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(susfs_hide_sus_mnts_for_non_su_procs);
 
 /* ===== SUSFS supercall dispatch =====
  *
@@ -170,11 +183,14 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	switch (cmd) {
 
 	/* ============ SUS_PATH commands ============ */
-	case CMD_SUSFS_ADD_SUS_PATH: {
+	case CMD_SUSFS_ADD_SUS_PATH:
+	case CMD_SUSFS_ADD_SUS_PATH_LOOP: {
 		/* Old v1.5.5 tool sends struct WITHOUT target_ino
 		 * (pathname at offset 0). Kernel-4.14 branch expects
 		 * target_ino first. Read old pathname, build proper
-		 * struct, forward via set_fs(KERNEL_DS). */
+		 * struct, forward via set_fs(KERNEL_DS).
+		 * ADD_SUS_PATH_LOOP is the same code path (the loop flag
+		 * is a GKI optimization; on 4.14 we just do add_sus_path). */
 		struct st_susfs_sus_path _info;
 		char _oldp[SUSFS_MAX_LEN_PATHNAME];
 		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
@@ -249,6 +265,15 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		ret = 0;
 		break;
 
+	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
+	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS: {
+		int enabled;
+		if (copy_from_user(&enabled, arg, sizeof(enabled)))
+			return -EFAULT;
+		ret = susfs_hide_sus_mnts_for_non_su_procs(enabled ? true : false);
+		break;
+	}
+
 	/* ============ SPOOF_UNAME commands ============ */
 	case CMD_SUSFS_SET_UNAME:
 		ret = susfs_set_uname((struct st_susfs_uname __user *)arg);
@@ -261,6 +286,15 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 			return -EFAULT;
 		susfs_set_log(enabled ? true : false);
 		ret = 0;
+		break;
+	}
+
+	/* ============ ENABLE_AVC_LOG_SPOOFING (GKI backport stub) ============ */
+	case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING: {
+		int enabled;
+		if (copy_from_user(&enabled, arg, sizeof(enabled)))
+			return -EFAULT;
+		ret = susfs_enable_avc_log_spoofing(enabled ? true : false);
 		break;
 	}
 
@@ -325,6 +359,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		static const char features[] =
 			"add_sus_path\n"
 			"add_sus_path_loop\n"
+			"enable_avc_log_spoofing\n"
 			"hide_sus_mnts_for_non_su_procs\n"
 			"add_sus_kstat\n"
 			"update_sus_kstat\n"
