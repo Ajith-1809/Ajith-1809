@@ -137,22 +137,22 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Update SUSFS headers for userspace CMD compatibility
+      - name: Update SUSFS header CMD defines (only susfs_def.h)
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           SUSFS_V2_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2"
-          echo "=== Updating SUSFS headers (keeping v1.5.5 source + VFS hooks) ==="
+          echo "=== Updating SUSFS CMD defines (keeping original v1.5.5 susfs.h) ==="
 
-          # 1. Copy updated headers to include/linux/
-          #     These provide all the CMD_* codes and struct definitions that the
-          #     v1.5.5 tree may lack (SHOW_VERSION, ADD_SUS_MAP, etc.) so the
-          #     brene SUSFS UI tool can detect features.
-          for hdr in susfs_def.h susfs.h; do
-            cp -v "$SUSFS_V2_DIR/$hdr" include/linux/ \
-              || echo "WARN: $hdr copy failed"
-          done
-          echo "Headers updated (retaining original KBapna v1.5.5 susfs.c and VFS hooks)"
+          # 1. Only copy susfs_def.h (CMD_* codes).  Do NOT copy susfs.h from the
+          #    v2 package — it wraps struct definitions in CONFIG_* guards AND has
+          #    incompatible struct layouts (e.g. target_ino at offset 0), which
+          #    breaks compilation against the v1.5.5 fs/susfs.c.  The v1.5.5
+          #    susfs.h provides the correct struct layouts for the compat shim.
+          cp -v "$SUSFS_V2_DIR/susfs_def.h" include/linux/susfs_def.h \
+            || echo "WARN: susfs_def.h copy failed"
+          echo "susfs_def.h updated with v2 CMD codes"
+          echo "Keeping original KBapna v1.5.5 susfs.h (struct layouts unchanged)"
 
       - name: Patch KSUN supercall.c to forward SUSFS magic to susfs_handle_sys_reboot
         run: |
