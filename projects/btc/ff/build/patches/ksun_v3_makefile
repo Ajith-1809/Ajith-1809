@@ -49,12 +49,19 @@ obj-$(CONFIG_KSU) += kernelsu.o
 
 # Version info (used by supercall/dispatch.c and include/ksu.h)
 # KSU-Next uses KSU_VERSION = 30000 + git commit count (NOT major*10000+minor*100+patch).
-# The Kbuild file computes this from git history, but we delete Kbuild (fail-fast check).
-# Replicate the same logic here.
-KSU_GIT_VERSION := $(shell git -C $(src) rev-list --count HEAD 2>/dev/null || echo "1")
-ccflags-y += -DKSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION))
-KSU_GIT_TAG := $(shell git -C $(src) describe --tags --abbrev=0 2>/dev/null || echo "v3.2.0-legacy")
-ccflags-y += -DKSU_VERSION_TAG=\"$(KSU_GIT_TAG)\"
+# The upstream Kbuild file computes this from the KSUN repo git history, but we
+# delete Kbuild (fail-fast check) and the drivers/kernelsu/ directory is not a
+# standalone git repo, so we hardcode the version for v3.2.0-legacy.
+# Upstream formula: KSU_VERSION = 30000 + $(git rev-list --count HEAD) + 150
+# The v3.2.0-legacy branch has 2979 commits → 30000 + 2979 + 150 = 33129
+ccflags-y += -DKSU_VERSION=33129
+ccflags-y += -DKSU_VERSION_TAG=\"v3.2.0-legacy\"
+
+# Hook mode: enable KPROBES for reboot supercall (checked by supercall.c)
+# CONFIG_KSU_KPROBES_HOOK is set in the config fragment
+ifdef CONFIG_KSU_KPROBES_HOOK
+ccflags-y += -DKSU_KPROBES_HOOK
+endif
 
 # Force-include the kernel 4.14 compat layer (TWA flags, nofault, etc.)
 ccflags-y += -include $(src)/ksu_compat.h
