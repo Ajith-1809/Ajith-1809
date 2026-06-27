@@ -59,4 +59,16 @@
 #define DATA_ADB_NO_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT "/data/adb/susfs_no_auto_add_sus_ksu_default_mount"
 #define DATA_ADB_NO_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT "/data/adb/susfs_no_auto_add_try_umount_for_bind_mount"
 
+/* GKI backport CMD codes (non-conflicting with kernel-4.14 0x55550-0x555d0 range) */
+#define CMD_SUSFS_ADD_SUS_MAPS_STATICALLY 0x5555e
+#define CMD_SUSFS_ADD_SUS_PROC_FD_LINK    0x5555f
+#define CMD_SUSFS_ADD_SUS_MAPS            0x55561
+#define CMD_SUSFS_UPDATE_SUS_MAPS         0x55562
+#define CMD_SUSFS_ADD_SUS_MEMFD           0x55563
+#define CMD_SUSFS_HIDE_SUS_MOUNT          0x55564
+#define CMD_SUSFS_SHOW_SUS_MOUNT          0x55565
+#define CMD_SUSFS_ADD_SUS_MAP_FILES       0x55566
+#define CMD_SUSFS_ADD_MNT_ID_RECORDER     0x55567
+#define CMD_SUSFS_REMOVE_MNT_ID_RECORDER  0x55568
+
 #endif // #ifndef KSU_SUSFS_DEF_H
