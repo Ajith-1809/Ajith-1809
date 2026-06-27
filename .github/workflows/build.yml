@@ -100,6 +100,33 @@ jobs:
           grep -q "INODE_STATE_SUS_PATH" fs/namei.c && echo "  fs/namei.c: OK" || echo "  fs/namei.c: MISSING"
           grep -q "susfs_ino_for_show_map_vma" fs/proc/task_mmu.c && echo "  fs/proc/task_mmu.c: OK" || echo "  fs/proc/task_mmu.c: MISSING"
 
+      - name: Fix partial patch failures — add missing SUSFS includes to task_mmu.c / cmdline.c
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Adding missing SUSFS includes to files where VFS patch hunks failed ==="
+          # task_mmu.c: hunk 1 (include add) failed, but hunks 2-3 (SUS_KSTAT usage) applied
+          if ! grep -q 'linux/susfs_def.h' fs/proc/task_mmu.c 2>/dev/null; then
+            awk '/#include <linux\/mm_inline.h>/{print; print "#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT"; print "#include <linux/susfs_def.h>"; print "#endif"; next}1' \
+              fs/proc/task_mmu.c > /tmp/_task_mmu.c
+            mv /tmp/_task_mmu.c fs/proc/task_mmu.c
+            echo "  fs/proc/task_mmu.c: injected susfs_def.h include"
+          else
+            echo "  fs/proc/task_mmu.c: include already present"
+          fi
+          # cmdline.c: hunk 1 (SUSFS code) failed entirely
+          if ! grep -q 'susfs' fs/proc/cmdline.c 2>/dev/null; then
+            printf '%s\n' '#ifdef CONFIG_KSU_SUSFS' '#include <linux/susfs.h>' '#endif' \
+              | cat - fs/proc/cmdline.c > /tmp/_cmdline.c
+            mv /tmp/_cmdline.c fs/proc/cmdline.c
+            echo "  fs/proc/cmdline.c: injected susfs.h include"
+          else
+            echo "  fs/proc/cmdline.c: passthru (already has SUSFS code)"
+          fi
+          # Verify SUSFS hooks are present (re-check)
+          echo "=== Re-checking SUSFS hooks ==="
+          grep -q "susfs_ino_for_show_map_vma" fs/proc/task_mmu.c && echo "  task_mmu.c: OK (has susfs_ino_for_show_map_vma)" || echo "  task_mmu.c: STILL MISSING susfs hooks"
+
       - name: Copy susfs.c and headers into kernel tree
         run: |
           set -euo pipefail
