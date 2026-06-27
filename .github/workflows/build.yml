@@ -199,22 +199,20 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Updating susfs_def.h with GKI backport CMD codes ==="
-          # Extend susfs_def.h with GKI backport CMD codes
           if ! grep -q "CMD_SUSFS_ADD_SUS_MAPS" include/linux/susfs_def.h; then
-            cat >> include/linux/susfs_def.h << 'SUSFS_CMD_EOF'
-
-/* GKI backport CMD codes */
-#define CMD_SUSFS_ADD_SUS_MAPS_STATICALLY 0x5555e
-#define CMD_SUSFS_ADD_SUS_PROC_FD_LINK    0x5555f
-#define CMD_SUSFS_ADD_SUS_MAPS            0x55560
-#define CMD_SUSFS_UPDATE_SUS_MAPS         0x55561
-#define CMD_SUSFS_ADD_SUS_MEMFD           0x55562
-#define CMD_SUSFS_HIDE_SUS_MOUNT          0x55563
-#define CMD_SUSFS_SHOW_SUS_MOUNT          0x55564
-#define CMD_SUSFS_ADD_SUS_MAP_FILES       0x55565
-#define CMD_SUSFS_ADD_MNT_ID_RECORDER     0x55566
-#define CMD_SUSFS_REMOVE_MNT_ID_RECORDER  0x55567
-SUSFS_CMD_EOF
+            printf '%s\n' \
+              '/* GKI backport CMD codes */' \
+              '#define CMD_SUSFS_ADD_SUS_MAPS_STATICALLY 0x5555e' \
+              '#define CMD_SUSFS_ADD_SUS_PROC_FD_LINK    0x5555f' \
+              '#define CMD_SUSFS_ADD_SUS_MAPS            0x55560' \
+              '#define CMD_SUSFS_UPDATE_SUS_MAPS         0x55561' \
+              '#define CMD_SUSFS_ADD_SUS_MEMFD           0x55562' \
+              '#define CMD_SUSFS_HIDE_SUS_MOUNT          0x55563' \
+              '#define CMD_SUSFS_SHOW_SUS_MOUNT          0x55564' \
+              '#define CMD_SUSFS_ADD_SUS_MAP_FILES       0x55565' \
+              '#define CMD_SUSFS_ADD_MNT_ID_RECORDER     0x55566' \
+              '#define CMD_SUSFS_REMOVE_MNT_ID_RECORDER  0x55567' \
+              >> include/linux/susfs_def.h
             echo "GKI backport CMD codes added"
           else
             echo "GKI backport CMD codes already present"
