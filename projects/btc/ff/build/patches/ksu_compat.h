@@ -69,20 +69,9 @@ strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count)
 #endif
 
 /* ===== selinux_cred() compat =====
- * The selinux_cred() helper was added in upstream Linux 5.x.
- * On kernel 4.14, cred->security holds the task_security_struct
- * directly. KSUN v3.2.0-legacy uses selinux_cred() in its
- * selinux.c for domain transitions and SID matching.
- * Provide a static inline that mimics the GKI function.
+ * The tillua467 v2.4 kernel (4.14-openela) already provides selinux_cred()
+ * in security/selinux/include/objsec.h via the blob-based model.
  */
-#ifdef CONFIG_SECURITY_SELINUX
-#ifndef selinux_cred
-static inline struct task_security_struct *selinux_cred(const struct cred *cred)
-{
-	return (struct task_security_struct *)(cred->security);
-}
-#endif
-#endif
 
 /* =====================================================================
  * SUSFS defines for KSUN supercall dispatch
