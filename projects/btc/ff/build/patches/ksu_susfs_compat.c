@@ -32,13 +32,92 @@
 #include <linux/stat.h>
 #include <linux/time.h>
 #include <linux/syscalls.h>
+#include <linux/utsname.h>
 
-/* ===== Forward declarations from fs/susfs.c =====
- * These are the real SUSFS handlers from the official kernel-4.14 branch.
- * We call them from our supercall dispatch wrapper.
+/* ===== SUSFS structs and function declarations =====
+ *
+ * The KBapna v1.5.5 tree defines structs inside CONFIG guards under
+ * different symbol names than the v2 kernel-4.14 branch.  Rather than
+ * depending on which susfs.h is installed, we define the structs we
+ * need locally here, matching v1.5.5 layout (pathname-first, no
+ * target_ino/is_statically prefix).  Functions are declared with extern
+ * — they resolve at link time against fs/susfs.o.
  */
 #include <linux/susfs_def.h>
-#include <linux/susfs.h>
+
+/* ===== v1.5.5-compatible struct definitions =====
+ *
+ * Layout notes for arm64 (8-byte unsigned long):
+ *   v2:   unsigned long target_ino + char pathname[256]  → sizeof=264
+ *   v1.5: char pathname[256]                              → sizeof=256
+ */
+struct st_susfs_sus_path {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+};
+
+struct st_susfs_sus_mount {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long target_dev;
+};
+
+struct st_susfs_sus_kstat {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long spoofed_ino;
+	unsigned long spoofed_dev;
+	unsigned int spoofed_nlink;
+	long long spoofed_size;
+	long spoofed_atime_tv_sec;
+	long spoofed_mtime_tv_sec;
+	long spoofed_ctime_tv_sec;
+	long spoofed_atime_tv_nsec;
+	long spoofed_mtime_tv_nsec;
+	long spoofed_ctime_tv_nsec;
+	unsigned long spoofed_blksize;
+	unsigned long long spoofed_blocks;
+};
+
+struct st_susfs_try_umount {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	int mnt_mode;
+};
+
+struct st_susfs_uname {
+	char sysname[__NEW_UTS_LEN + 1];
+	char nodename[__NEW_UTS_LEN + 1];
+	char release[__NEW_UTS_LEN + 1];
+	char version[__NEW_UTS_LEN + 1];
+	char machine[__NEW_UTS_LEN + 1];
+	char domainname[__NEW_UTS_LEN + 1];
+};
+
+struct st_susfs_open_redirect {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	char redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
+};
+
+struct st_sus_su {
+	int mode;
+};
+
+/* ===== Extern function declarations from fs/susfs.c =====
+ * These are the real SUSFS handlers linked into vmlinux.
+ * Declared here to avoid depending on include/linux/susfs.h
+ * (which may guard struct definitions under unexpected CONFIG names). */
+extern int susfs_add_sus_path(struct st_susfs_sus_path __user *user_info);
+extern int susfs_add_sus_mount(struct st_susfs_sus_mount __user *user_info);
+extern int susfs_add_sus_kstat(struct st_susfs_sus_kstat __user *user_info);
+extern int susfs_update_sus_kstat(struct st_susfs_sus_kstat __user *user_info);
+extern int susfs_add_try_umount(struct st_susfs_try_umount __user *user_info);
+extern int susfs_set_uname(struct st_susfs_uname __user *user_info);
+extern int susfs_set_cmdline_or_bootconfig(char __user *cmdline);
+extern int susfs_add_open_redirect(struct st_susfs_open_redirect __user *user_info);
+extern int susfs_sus_su(struct st_sus_su __user *user_info);
+extern int susfs_get_sus_su_working_mode(void);
+extern void susfs_set_log(bool enabled);
+extern void susfs_try_umount(uid_t uid);
+extern void susfs_init(void);
+extern int susfs_enable_avc_log_spoofing(bool enabled);
+extern int susfs_hide_sus_mnts_for_non_su_procs(bool enabled);
 
 /* ===== SID-based domain checks =====
  * KBapna's original selinux.c declared these globals and functions
