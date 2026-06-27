@@ -441,7 +441,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ SHOW commands ============ */
 	case CMD_SUSFS_SHOW_VERSION: {
 		/* struct { char version[16]; int err; } */
-		if (copy_to_user(arg, SUSFS_VERSION, sizeof("v1.5.5")))
+		if (copy_to_user(arg, "v1.5.5", sizeof("v1.5.5")))
 			return -EFAULT;
 		if (put_user(0, (int __user *)((char __user *)arg + 16)))
 			return -EFAULT;
@@ -483,7 +483,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 
 	case CMD_SUSFS_SHOW_VARIANT: {
 		/* struct { char variant[16]; int err; } */
-		if (copy_to_user(arg, SUSFS_VARIANT, sizeof("NON-GKI")))
+		if (copy_to_user(arg, "NON-GKI", sizeof("NON-GKI")))
 			return -EFAULT;
 		if (put_user(0, (int __user *)((char __user *)arg + 16)))
 			return -EFAULT;
