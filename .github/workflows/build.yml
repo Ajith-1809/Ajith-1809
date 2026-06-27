@@ -99,97 +99,12 @@ jobs:
           if grep -q 'config KSU_SUSFS' "$KCONFIG"; then
             echo "SUSFS Kconfig entries already present — skipping patch"
           else
-            echo "=== Adding SUSFS Kconfig entries before endmenu ==="
-            # Insert the SUSFS Kconfig menu entries just before the closing
-            # endmenu line so olddefconfig recognizes CONFIG_KSU_SUSFS.
-            sed -i '/^endmenu$/i\
-menu "KernelSU - SUSFS"\
-\
-config KSU_SUSFS\
-	bool "KernelSU addon - SUSFS"\
-	depends on KSU\
-	default y\
-\
-config KSU_SUSFS_HAS_MAGIC_MOUNT\
-	bool "Magic mount support"\
-	depends on KSU\
-	default y\
-\
-config KSU_SUSFS_SUS_PATH\
-	bool "Hide suspicious path"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_SUS_MOUNT\
-	bool "Hide suspicious mounts"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT\
-	bool "Auto-hide KSU default mounts"\
-	depends on KSU_SUSFS_SUS_MOUNT\
-	default y\
-\
-config KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT\
-	bool "Auto-hide bind mounts"\
-	depends on KSU_SUSFS_SUS_MOUNT\
-	default y\
-\
-config KSU_SUSFS_SUS_KSTAT\
-	bool "Spoof kstat"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_SUS_OVERLAYFS\
-	bool "Spoof overlayfs kstat"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_TRY_UMOUNT\
-	bool "Try umount"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT\
-	bool "Auto try-umount bind mounts"\
-	depends on KSU_SUSFS_TRY_UMOUNT\
-	default y\
-\
-config KSU_SUSFS_SPOOF_UNAME\
-	bool "Spoof uname"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_ENABLE_LOG\
-	bool "Enable logging"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS\
-	bool "Hide kallsyms symbols"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG\
-	bool "Spoof cmdline/bootconfig"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_OPEN_REDIRECT\
-	bool "Open redirect"\
-	depends on KSU_SUSFS\
-	default y\
-\
-config KSU_SUSFS_SUS_MAP\
-	bool "Hide suspicious maps"\
-	depends on KSU_SUSFS\
-	default y\
-\
-endmenu\
-' "$KCONFIG"
-            grep -q 'config KSU_SUSFS' "$KCONFIG" && \
-              echo "SUSFS Kconfig entries added successfully" || \
-              { echo "::error::SUSFS Kconfig insertion failed"; exit 1; }
+            echo "=== Inserting SUSFS Kconfig entries before endmenu ==="
+            # Python one-liner replaces first 'endmenu' with menu-file-content
+            # followed by a newline and 'endmenu', keeping KSUN's menu structure.
+            python3 -c "import sys; k=open(sys.argv[1]).read(); m=open(sys.argv[2]).read(); k=k.replace('endmenu', m+chr(10)+'endmenu', 1); open(sys.argv[1],'w').write(k)" \
+              "$KCONFIG" "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/susfs_kconfig_menu.txt"
+            grep -q 'config KSU_SUSFS' "$KCONFIG" && echo "SUSFS Kconfig OK" || { echo "::error::SUSFS Kconfig insert failed"; exit 1; }
           fi
 
       - name: Backport kernel 4.14 compat layer for KSUN v3.2.0-legacy APIs
