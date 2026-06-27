@@ -27,27 +27,31 @@
 #endif
 
 /* ===== strncpy_from_user_nofault() =====
- * Added in kernel 5.3 (commit c9b9cfe). In 4.14 we:
- * 1. Disable pagefaults (so __get_user won't fault on bad addr)
- * 2. Call the existing strncpy_from_user
- * 3. Re-enable pagefaults
- * This is identical to the upstream implementation.
+ * The tillua467 v2.4 kernel (4.14-openela) already provides this.
+ * For older 4.14 kernels without this backport, uncomment the
+ * definition below.
+ *
+ * Original kernel 5.3 commit c9b9cfe. Equivalent to:
+ *   pagefault_disable();
+ *   ret = strncpy_from_user(dst, src, count);
+ *   pagefault_enable();
  */
+
+/* Uncomment for kernels that don't provide strncpy_from_user_nofault:
 #ifndef HAVE_ARCH_STRNCPY_FROM_USER_NOFAULT
 static inline long
-strncpy_from_user_nofault(char *dst, const char __user *src, long count)
+strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count)
 {
-	long ret;
-
-	if (unlikely(count <= 0))
-		return 0;
-
-	pagefault_disable();
-	ret = strncpy_from_user(dst, src, count);
-	pagefault_enable();
-	return ret;
+    long ret;
+    if (unlikely(count <= 0))
+        return 0;
+    pagefault_disable();
+    ret = strncpy_from_user(dst, unsafe_addr, count);
+    pagefault_enable();
+    return ret;
 }
 #endif
+*/
 
 /* ===== selinux_inode() compat =====
  * Kernel 4.14 CAF does NOT have the selinux_inode(inode) function
