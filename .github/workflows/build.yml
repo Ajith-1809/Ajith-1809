@@ -1,14 +1,14 @@
-# Build Phoenix KSUN v3.2.0-legacy / SUSFS kernel-4.14 full features
+# Build Phoenix Kernel (tillua467 source) with KSUN v3.2.0-legacy + SUSFS v1.5.5 + GKI backport
+#
+# Source: https://github.com/tillua467-s-Playground/android_kernel_xiaomi_phoenix tag v2.4
+# Defconfig: arch/arm64/configs/vendor/phoenix_defconfig
+# SOC: Qualcomm SM6150/SDMMAGPIE (Xiaomi POCO X2 / Redmi K30)
 
-name: Build Phoenix KSUN v3.2.0-legacy / SUSFS kernel-4.14
+name: Build Phoenix tillua467 KSUN v3.2.0-legacy + SUSFS + GKI backport
 
 on:
   workflow_dispatch:
     inputs:
-      adb_serial:
-        description: 'ADB serial of the device (e.g. 5b389e4c)'
-        required: true
-        type: string
       upload_target:
         description: 'Where to upload artifacts after build'
         required: false
@@ -40,59 +40,105 @@ jobs:
             binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             cpio lz4 zip unzip bc patch
 
-      - name: Fetch KBapna base at Unholy_KSUN+SUSFS (download ZIP)
+      - name: Clone tillua467 kernel source (v2.4)
         run: |
           set -euo pipefail
-          # Download KBapna source as ZIP (much faster than git clone of 1.7 GB repo)
-          curl -fL --retry 3 \
-            "https://github.com/KBapna/Unholy_Phoenix_Redmi_K30_Kernel/archive/refs/heads/Unholy_KSUN+SUSFS.zip" \
-            -o /tmp/kbapna-src.zip
-          mkdir -p /tmp/kbapna-extracted
-          echo "Extracting ZIP archive ..."
-          unzip -qo /tmp/kbapna-src.zip -d /tmp/kbapna-extracted
-          # The single top-level directory name from a GitHub branch ZIP varies
-          # (especially with + in branch names). Resolve it dynamically.
-          extracted_dir=$(find /tmp/kbapna-extracted -mindepth 1 -maxdepth 1 -type d | head -1)
-          if [ -z "$extracted_dir" ]; then
-            echo "::error::No directory found in extracted ZIP"
-            ls -la /tmp/kbapna-extracted/
-            exit 1
-          fi
-          echo "Extracted: $extracted_dir"
-          mkdir -p "$PROJECT_ROOT/build/sources/KBapna"
-          shopt -s dotglob
-          mv "$extracted_dir"/* "$PROJECT_ROOT/build/sources/KBapna"/
-          shopt -u dotglob
-          rm -f /tmp/kbapna-src.zip
-          rm -rf /tmp/kbapna-extracted
-          cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== arch/arm64/configs ==="
-          ls -l arch/arm64/configs
-          echo "=== phoenix_defconfig present: $([ -f arch/arm64/configs/phoenix_defconfig ] && echo YES || echo NO) ==="
-          test -f arch/arm64/configs/phoenix_defconfig || {
-            echo "::error::kbapna clone is missing arch/arm64/configs/phoenix_defconfig"
-            exit 1
-          }
+          mkdir -p "$PROJECT_ROOT/build/sources/tillua467"
+          git clone --depth 1 --branch v2.4 \
+            "https://github.com/tillua467-s-Playground/android_kernel_xiaomi_phoenix.git" \
+            "$PROJECT_ROOT/build/sources/tillua467"
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== arch/arm64/configs/vendor ==="
+          ls -la arch/arm64/configs/vendor/phoenix_defconfig
+          echo "=== CLANG/LLVM detection ==="
+          test -f scripts/dtc/include-prefixes/dt-bindings && echo "dt-bindings OK" || true
+          echo "Kernel version: $(head -5 Makefile | grep VERSION || true)"
+          echo "PATCHLEVEL: $(grep "^PATCHLEVEL" Makefile || true)"
 
-      - name: Overlay KernelSU-Next v3.2.0-legacy via upstream setup.sh
+      - name: Fetch SUSFS kernel-4.14 source from GitLab
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
+          SUSFS_URL="https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.14"
+          mkdir -p /tmp/susfs-src
+          for f in \
+            "kernel_patches/50_add_susfs_in_kernel-4.14.patch" \
+            "kernel_patches/fs/susfs.c" \
+            "kernel_patches/include/linux/susfs.h" \
+            "kernel_patches/include/linux/susfs_def.h"; do
+            outname=$(basename "$f")
+            echo "Downloading $outname ..."
+            curl -fL --retry 3 "$SUSFS_URL/$f" -o "/tmp/susfs-src/$outname"
+          done
+          ls -lh /tmp/susfs-src/
+
+      - name: Apply SUSFS VFS patch (50_add_susfs_in_kernel-4.14.patch)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Applying SUSFS VFS patch (18 kernel files modified) ==="
+          patch -p1 --forward --batch \
+            -i /tmp/susfs-src/50_add_susfs_in_kernel-4.14.patch \
+            -r /dev/null 2>&1 || true
+          # Verify patch applied correctly
+          echo "=== Checking SUSFS VFS hooks ==="
+          grep -q "susfs_is_current_ksu_domain" fs/namespace.c && echo "  fs/namespace.c: OK" || echo "  fs/namespace.c: MISSING"
+          grep -q "susfs_sus_ino_for_filldir64" fs/readdir.c && echo "  fs/readdir.c: OK" || echo "  fs/readdir.c: MISSING"
+          grep -q "INODE_STATE_SUS_PATH" fs/namei.c && echo "  fs/namei.c: OK" || echo "  fs/namei.c: MISSING"
+          grep -q "susfs_ino_for_show_map_vma" fs/proc/task_mmu.c && echo "  fs/proc/task_mmu.c: OK" || echo "  fs/proc/task_mmu.c: MISSING"
+
+      - name: Copy susfs.c and headers into kernel tree
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          cp -v /tmp/susfs-src/susfs.c fs/susfs.c
+          cp -v /tmp/susfs-src/susfs.h include/linux/susfs.h
+          cp -v /tmp/susfs-src/susfs_def.h include/linux/susfs_def.h
+          echo "=== verify ==="
+          ls -lh fs/susfs.c include/linux/susfs.h include/linux/susfs_def.h
+
+      - name: Add susfs.o to fs/Makefile
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          if ! grep -q 'susfs.o' fs/Makefile; then
+            sed -i '/^obj-y.*nsfs.o/a obj-$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile
+            echo "susfs.o added to fs/Makefile"
+          else
+            echo "susfs.o already in fs/Makefile"
+          fi
+
+      - name: Append GKI backport functions to susfs.c (minimal — SUS_MAP/SUS_PROC_FD_LINK/SUS_MEMFD backend)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Appending GKI backport backend functions to fs/susfs.c ==="
+          cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2/susfs_gki_backport.c" \
+            >> fs/susfs.c
+          echo "GKI backport appended ($(wc -l < fs/susfs.c) lines total)"
+          # Add slab.h include near top if not present
+          if ! grep -q '#include <linux/slab.h>' fs/susfs.c; then
+            sed -i '1i #include <linux/slab.h>' fs/susfs.c
+          fi
+
+      - name: Integrate KernelSU-Next v3.2.0-legacy via setup.sh
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
           if [[ -d KernelSU-Next ]]; then
             rm -rf KernelSU-Next
           fi
-          # v3.2.0-legacy is the latest tag supporting non-GKI kernels (4.14+).
-          # The regular v3.2.0 only supports GKI (5.10+).
           curl -fsSL \
             "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v3.2.0-legacy/kernel/setup.sh" \
             -o /tmp/ksun-setup.sh
           bash /tmp/ksun-setup.sh v3.2.0-legacy
           rm -f /tmp/ksun-setup.sh
+          echo "=== KSUN integrated ==="
+          ls -ld KernelSU-Next/
 
-      - name: Add SUSFS Kconfig entries to KernelSU-Next (restored after setup.sh overwrite)
+      - name: Add SUSFS Kconfig entries to KernelSU-Next Kconfig
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
+          cd "$PROJECT_ROOT/build/sources/tillua467"
           KCONFIG="KernelSU-Next/kernel/Kconfig"
           echo "=== Checking KernelSU-Next Kconfig ==="
           test -f "$KCONFIG" || { echo "::error::Kconfig not found at $KCONFIG"; exit 1; }
@@ -100,46 +146,39 @@ jobs:
             echo "SUSFS Kconfig entries already present — skipping patch"
           else
             echo "=== Inserting SUSFS Kconfig entries before endmenu ==="
-            # Python one-liner replaces first 'endmenu' with menu-file-content
-            # followed by a newline and 'endmenu', keeping KSUN's menu structure.
             python3 -c "import sys; k=open(sys.argv[1]).read(); m=open(sys.argv[2]).read(); k=k.replace('endmenu', m+chr(10)+'endmenu', 1); open(sys.argv[1],'w').write(k)" \
               "$KCONFIG" "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/susfs_kconfig_menu.txt"
             grep -q 'config KSU_SUSFS' "$KCONFIG" && echo "SUSFS Kconfig OK" || { echo "::error::SUSFS Kconfig insert failed"; exit 1; }
           fi
 
-      - name: Backport kernel 4.14 compat layer for KSUN v3.2.0-legacy APIs
+      - name: Backport KSUN v3.2.0-legacy for kernel 4.14 (built-in Makefile + compat)
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
+          cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Applying KSUN v3.2.0-legacy kernel 4.14 compatibility layer ==="
-          # 1. Copy the compat header into drivers/kernelsu/
+
+          # 1. Copy compat header and SUSFS compat source
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat.h" \
             drivers/kernelsu/ksu_compat.h
-          # 1b. Copy SUSFS compat source (provides susfs_is_current_ksu_domain,
-          #     susfs_is_current_zygote_domain, ksu_try_umount, etc.)
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_susfs_compat.c" \
             drivers/kernelsu/susfs_compat.c
-          # 2. Replace LKM-style Makefile with built-in Makefile for kernel 4.14
-          #    The upstream v3.2.0-legacy kernel/Makefile is designed for
-          #    external-module (LKM) compilation (make ... M=$(MDIR) modules).
-          #    When drivers/Makefile has obj-$(CONFIG_KSU) += kernelsu/ for
-          #    built-in mode, that LKM Makefile produces NO objects — causing
-          #    vmlinux link failures for ksu_input_hook and all other KSUN
-          #    symbols.  Our replacement lists every .c file explicitly via
-          #    kernelsu-y and compiles them all into kernelsu.o.
+
+          # 2. Replace LKM Makefile with built-in Makefile for kernel 4.14
           cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksun_v3_makefile" \
             drivers/kernelsu/Makefile
           echo "Replaced KSUN Makefile with built-in version for kernel 4.14"
-          # 3. Delete Kbuild — it takes priority over Makefile and has a fail-fast
-          #    hook check (ksu_handle_sys_reboot in kernel/reboot.c) that the KBapna
-          #    tree doesn't satisfy. Our built-in Makefile handles all compilation.
+
+          # 3. Delete Kbuild (has fail-fast hooks not compatible with KBapna/tillua467)
           rm -f drivers/kernelsu/Kbuild
-          echo "Removed KSUN Kbuild (Makefile now takes priority)"
-          # 4. Create <linux/pgtable.h> stub (5.9+ header not present on 4.14)
-          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_compat_pgtable.h" \
-            include/linux/pgtable.h 2>/dev/null || touch include/linux/pgtable.h
+          echo "Removed KSUN Kbuild"
+
+          # 4. Create <linux/pgtable.h> stub if needed
+          if [ ! -f include/linux/pgtable.h ]; then
+            echo "#include <asm/pgtable.h>" > include/linux/pgtable.h
+          fi
           echo "Created include/linux/pgtable.h -> asm/pgtable.h alias"
-          # 4. Scan for remaining incompatibilities
+
+          # 5. Scan for remaining incompatibilities
           DK="drivers/kernelsu"
           echo "=== Scanning for remaining 4.14-incompatible references ==="
           for f in "$DK"/*.c "$DK"/*.h; do
@@ -155,80 +194,64 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Update SUSFS header CMD defines (only susfs_def.h)
+      - name: Update SUSFS header CMD defines
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
-          SUSFS_V2_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2"
-          echo "=== Updating SUSFS CMD defines (keeping original v1.5.5 susfs.h) ==="
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Updating susfs_def.h with GKI backport CMD codes ==="
+          # Extend susfs_def.h with GKI backport CMD codes
+          if ! grep -q "CMD_SUSFS_ADD_SUS_MAPS" include/linux/susfs_def.h; then
+            cat >> include/linux/susfs_def.h << 'SUSFS_CMD_EOF'
 
-          # 1. Only copy susfs_def.h (CMD_* codes).  Do NOT copy susfs.h from the
-          #    v2 package — it wraps struct definitions in CONFIG_* guards AND has
-          #    incompatible struct layouts (e.g. target_ino at offset 0), which
-          #    breaks compilation against the v1.5.5 fs/susfs.c.  The v1.5.5
-          #    susfs.h provides the correct struct layouts for the compat shim.
-          cp -v "$SUSFS_V2_DIR/susfs_def.h" include/linux/susfs_def.h \
-            || echo "WARN: susfs_def.h copy failed"
-          echo "susfs_def.h updated with v2 CMD codes"
-          echo "Keeping original KBapna v1.5.5 susfs.h (struct layouts unchanged)"
-
-      - name: Patch KSUN supercall.c to forward SUSFS magic to susfs_handle_sys_reboot
-        run: |
-          set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
-          echo "=== Applying SUSFS supercall forward patch ==="
-          patch -p1 --forward --batch \
-            -i "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_supercall_forward.patch" \
-            -r /dev/null 2>&1 || true
-          # Verify the patch was applied
-          if grep -q '0xFAFAFAFA' KernelSU-Next/kernel/supercall/supercall.c; then
-            echo "SUSFS supercall forward patch applied successfully"
+/* GKI backport CMD codes */
+#define CMD_SUSFS_ADD_SUS_MAPS_STATICALLY 0x5555e
+#define CMD_SUSFS_ADD_SUS_PROC_FD_LINK    0x5555f
+#define CMD_SUSFS_ADD_SUS_MAPS            0x55560
+#define CMD_SUSFS_UPDATE_SUS_MAPS         0x55561
+#define CMD_SUSFS_ADD_SUS_MEMFD           0x55562
+#define CMD_SUSFS_HIDE_SUS_MOUNT          0x55563
+#define CMD_SUSFS_SHOW_SUS_MOUNT          0x55564
+#define CMD_SUSFS_ADD_SUS_MAP_FILES       0x55565
+#define CMD_SUSFS_ADD_MNT_ID_RECORDER     0x55566
+#define CMD_SUSFS_REMOVE_MNT_ID_RECORDER  0x55567
+SUSFS_CMD_EOF
+            echo "GKI backport CMD codes added"
           else
-            echo "WARN: SUSFS magic not found in supercall.c — patch may have failed"
-            grep -n 'magic1' KernelSU-Next/kernel/supercall/supercall.c || true
+            echo "GKI backport CMD codes already present"
           fi
 
-      - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
+      - name: Fix cam_utils include path (tillua467 tree check)
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
+          cd "$PROJECT_ROOT/build/sources/tillua467"
           MK=drivers/media/platform/msm/camera/cam_utils/Makefile
-          test -f "$MK"
-          # cam_trace.c does `#define CREATE_TRACE_POINTS` and `#include "cam_trace.h"`.
-          # At compile time, define_trace.h emits a quoted `#include "./cam_trace.h"`,
-          # which gcc resolves relative to include/trace/ — and that path is NOT on -I.
-          # cam_utils/Makefile lists -I flags for cam_core/ cam_req_mgr/ cam_smmu/, but
-          # not for cam_utils/ itself. Add it before any existing ccflags-y line so the
-          # the relative include resolves to the directory holding cam_trace.h.
-          if ! grep -q 'cam_utils/$$' "$MK"; then
-            sed -i '1i ccflags-y += -Idrivers/media/platform/msm/camera/cam_utils/' "$MK"
-            echo "Patched $(wc -l < $MK) lines into $MK:"
-            head -3 "$MK"
+          if [ -f "$MK" ]; then
+            if ! grep -q 'cam_utils/$$' "$MK"; then
+              sed -i '1i ccflags-y += -Idrivers/media/platform/msm/camera/cam_utils/' "$MK"
+              echo "Patched cam_utils Makefile"
+            else
+              echo "cam_utils include already present"
+            fi
+          else
+            echo "cam_utils Makefile not found — skipping"
           fi
 
-      - name: Drop -Werror from vendor drivers only (NOT top Makefile)
+      - name: Drop -Werror from vendor drivers
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
-          # Only strip -Werror from vendor Kbuild/Makefile files, NOT from the
-          # top-level Makefile (which CONFIG_WERROR=n handles from .config).
-          # GCC 12+ promotes -Wmaybe-uninitialized and -Wenum-int-mismatch to
-          # errors in out-of-tree Qualcomm vendor drivers. Known offenders:
-          #   drivers/staging/qcacld-3.0/Kbuild          — backported wifi
-          #   techpack/audio/asoc/codecs/tfa98xx/Makefile — audio codec
+          cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Stripping -Werror from vendor Makefile/Kbuild files ==="
           find drivers/staging techpack -type f \( -name 'Makefile' -o -name 'Kbuild' \) \
             -exec grep -l '\-Werror' {} \; \
             -exec echo "  Stripping: {}" \; \
-            -exec sed -i 's/-Werror//g' {} \;
+            -exec sed -i 's/-Werror//g' {} \; 2>/dev/null || true
           echo "=== Done ==="
 
-      - name: Fetch AnyKernel3 tools (busybox, magiskboot, magiskpolicy)
+      - name: Fetch AnyKernel3 tools
         run: |
           set -euo pipefail
           AK3_TOOLS_DIR="$PROJECT_ROOT/build/packaging/ak3/tools"
           mkdir -p "$AK3_TOOLS_DIR"
-          # Download tools from osm0sis/AnyKernel3 official repo
           AK3_REPO="https://raw.githubusercontent.com/osm0sis/AnyKernel3/master"
           for tool in busybox magiskboot magiskpolicy; do
             echo "Downloading $tool ..."
@@ -242,23 +265,16 @@ jobs:
         id: inspect
         run: |
           set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
+          cd "$PROJECT_ROOT/build/sources/tillua467"
           KSU_TAG=$(git -C KernelSU-Next describe --tags --always 2>/dev/null || echo "v3.2.0-legacy")
-          # Read the SUSFS_VERSION macro from the installed susfs.h
           SUSFS_VER=$(grep -E '^#define[[:space:]]+SUSFS_VERSION' include/linux/susfs.h 2>/dev/null \
                       | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
           SUSFS_VER="${SUSFS_VER:-v1.5.5}"
-          # Determine if we're using the new kernel-4.14 branch or the old backport
-          if grep -q 'susfs_sus_ino_for_show_map_vma' fs/susfs.c 2>/dev/null; then
-            SUSFS_BRANCH="kernel-4.14"
-          else
-            SUSFS_BRANCH="backported"
-          fi
           echo "ksud_version=$KSU_TAG" >> "$GITHUB_OUTPUT"
-          echo "susfs_version=${SUSFS_VER} (${SUSFS_BRANCH})" >> "$GITHUB_OUTPUT"
-          echo "Resolved: ksu_tag=$KSU_TAG susfs_version=$SUSFS_VER branch=$SUSFS_BRANCH"
+          echo "susfs_version=${SUSFS_VER} (kernel-4.14 + GKI backport)" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ksu_tag=$KSU_TAG susfs_version=$SUSFS_VER"
 
-      - name: Export build environment + SUSFS fragment
+      - name: Export build environment and append config fragment
         run: |
           set -euo pipefail
           {
@@ -266,38 +282,34 @@ jobs:
             echo "SUBARCH=arm64"
             echo "CROSS_COMPILE=aarch64-linux-gnu-"
           } >> "$GITHUB_ENV"
-          # KBapna's defconfig is at arch/arm64/configs/phoenix_defconfig.
-          cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/phoenix_v2.3.fragment" \
-            >> "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/KBapna/arch/arm64/configs/phoenix_defconfig"
+          # Append our SUSFS config fragment to the defconfig
+          # tillua467 source uses vendor/phoenix_defconfig
+          DEFCONFIG="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/tillua467/arch/arm64/configs/vendor/phoenix_defconfig"
+          FRAGMENT="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/phoenix_v2.4.fragment"
+          # Strip trailing newlines/concat
+          echo "" >> "$DEFCONFIG"
+          cat "$FRAGMENT" >> "$DEFCONFIG"
+          echo "Config fragment appended to vendor/phoenix_defconfig"
 
       - name: make defconfig
-        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
-        run: make ARCH=arm64 phoenix_defconfig
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
+        run: make ARCH=arm64 vendor/phoenix_defconfig
 
       - name: make prepare
-        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: make ARCH=arm64 prepare
 
       - name: Compile kernel + dtbs
-        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: |
           set -euo pipefail
-          # Two notes on flags:
-          #   (1) GCC over clang: the upstream build uses gcc-aarch64-linux-gnu.
-          #       Clang (LLM=1) trips Qualcomm's cam_trace.h auto-generated
-          #       header pipeline (the kernel's trace header machinery depends
-          #       on GCC-specific -fstack-protector detection ordering that
-          #       doesn't compose with LLM=1). Sticking with GCC for stability.
-          #   (2) -j2: ubuntu-latest runners have 2 cores and KBapna's tree has
-          #       memory spikes during parallel drivers/ builds; -j2 avoids OOM.
-          # Ensure build/ exists for tee log output
           mkdir -p build
           make -j2 ARCH=arm64 \
             Image.gz-dtb dtbs \
             |& tee build/kernel-build.log
 
       - name: Extract embedded kernel config
-        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: |
           set -euo pipefail
           mkdir -p build/out
@@ -305,7 +317,7 @@ jobs:
             > build/out/embedded.config || true
 
       - name: Run manifest scan
-        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/KBapna
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         env:
           KSU_SOURCE_TAG: ${{ steps.inspect.outputs.ksud_version }}
           SUSFS_SOURCE_VERSION: ${{ steps.inspect.outputs.susfs_version }}
@@ -314,10 +326,10 @@ jobs:
       - name: Package AnyKernel3 flashable ZIP
         run: |
           set -euo pipefail
-          KERNEL_SRC="$PROJECT_ROOT/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb"
+          KERNEL_SRC="$PROJECT_ROOT/build/sources/tillua467/arch/arm64/boot/Image.gz-dtb"
           AK3_SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3"
           OUT_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/out"
-          ZIP_NAME="Unholy_Phoenix_KSUN-v3.2.0-legacy_SUSFS-k414-phoenix-${{ github.run_number }}.zip"
+          ZIP_NAME="Unholy_Phoenix_KSUN-v3.2.0-legacy_SUSFS-v1.5.5_gki-bp-phoenix-${{ github.run_number }}.zip"
           test -f "$KERNEL_SRC" || { echo "::error::Image.gz-dtb not found at $KERNEL_SRC"; exit 1; }
           test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
           mkdir -p "$OUT_DIR"
@@ -326,7 +338,6 @@ jobs:
           chmod -R u+w /tmp/ak3-package
           cp "$KERNEL_SRC" /tmp/ak3-package/Image.gz-dtb
           cd /tmp/ak3-package
-          # Standard AnyKernel3 zip: store (no compression for boot images)
           zip -r -0 "$OUT_DIR/$ZIP_NAME" . \
             -x ".*" -x "*/.*"
           echo "=== AnyKernel3 ZIP created ==="
@@ -338,42 +349,26 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-image-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/arch/arm64/boot/Image.gz-dtb
+          path: ${{ env.PROJECT_ROOT }}/build/sources/tillua467/arch/arm64/boot/Image.gz-dtb
           retention-days: 30
 
       - name: Upload build log
         uses: actions/upload-artifact@v4
         with:
           name: kernel-build-log-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/build/kernel-build.log
+          path: ${{ env.PROJECT_ROOT }}/build/sources/tillua467/build/kernel-build.log
           retention-days: 14
 
       - name: Upload manifest
         uses: actions/upload-artifact@v4
         with:
           name: manifest-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/sources/KBapna/build/manifest/MANIFEST.json
+          path: ${{ env.PROJECT_ROOT }}/build/sources/tillua467/build/manifest/MANIFEST.json
           retention-days: 30
 
       - name: Upload AnyKernel3 flashable ZIP
         uses: actions/upload-artifact@v4
         with:
           name: anykernel3-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSUN-v3.2.0-legacy_SUSFS-k414-phoenix-${{ github.run_number }}.zip
+          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSUN-v3.2.0-legacy_SUSFS-v1.5.5_gki-bp-phoenix-${{ github.run_number }}.zip
           retention-days: 30
-
-  adb-pull:
-    needs: build
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.upload_target == 'gdrive' }}
-    steps:
-      - name: Wait for ADB connectivity
-        run: |
-          set -euo pipefail
-          SERIAL="${{ github.event.inputs.adb_serial }}"
-          # The ubuntu-latest runner does NOT have ADB access to your device.
-          # This job exists as a placeholder for a self-hosted runner.
-          # On your LAN, trigger the same workflow on a runner that has ADB.
-          echo "NOTE: ADB pull requires a self-hosted Linux runner on the same LAN as the device."
-          echo "Current runner: ${{ runner.name }} (${{ runner.os }})"
-          exit 0

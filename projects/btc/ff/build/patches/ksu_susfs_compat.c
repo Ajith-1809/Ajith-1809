@@ -45,40 +45,55 @@
  */
 #include <linux/susfs_def.h>
 
-/* ===== v1.5.5-compatible struct definitions =====
+/* ===== SUSFS structs matching kernel-4.14 branch layout =====
  *
- * Layout notes for arm64 (8-byte unsigned long):
- *   v2:   unsigned long target_ino + char pathname[256]  → sizeof=264
- *   v1.5: char pathname[256]                              → sizeof=256
+ * These MUST match the struct definitions in include/linux/susfs.h
+ * from the kernel-4.14 branch (not v1.5.5). The kernel-4.14 layout
+ * places target_ino/is_statically BEFORE target_pathname, unlike
+ * the v1.5.5 layout which has pathname at offset 0.
+ *
+ * When the userspace tool sends the old v1.5.5 format (pathname-only),
+ * the dispatch code manually converts it to the new format before
+ * calling the real susfs_* handler.
  */
+#include <linux/susfs_def.h>
+
+/* kernel-4.14: unsigned long target_ino + char pathname[256]  → sizeof=264 */
 struct st_susfs_sus_path {
-	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long           target_ino;
+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
 };
 
+/* kernel-4.14: same layout as v1.5.5 — just char pathname + unsigned long dev */
 struct st_susfs_sus_mount {
-	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned long target_dev;
+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long           target_dev;
 };
 
+/* kernel-4.14: int is_statically + unsigned long target_ino + char pathname + spoof data
+ * sizeof(int) + padding + sizeof(unsigned long) + 256 + ...
+ * On arm64: 4 + 4 + 8 + 256 + ... = 272 before spoofed fields */
 struct st_susfs_sus_kstat {
-	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned long spoofed_ino;
-	unsigned long spoofed_dev;
-	unsigned int spoofed_nlink;
-	long long spoofed_size;
-	long spoofed_atime_tv_sec;
-	long spoofed_mtime_tv_sec;
-	long spoofed_ctime_tv_sec;
-	long spoofed_atime_tv_nsec;
-	long spoofed_mtime_tv_nsec;
-	long spoofed_ctime_tv_nsec;
-	unsigned long spoofed_blksize;
-	unsigned long long spoofed_blocks;
+	int                     is_statically;
+	unsigned long           target_ino;
+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long           spoofed_ino;
+	unsigned long           spoofed_dev;
+	unsigned int            spoofed_nlink;
+	long long               spoofed_size;
+	long                    spoofed_atime_tv_sec;
+	long                    spoofed_mtime_tv_sec;
+	long                    spoofed_ctime_tv_sec;
+	long                    spoofed_atime_tv_nsec;
+	long                    spoofed_mtime_tv_nsec;
+	long                    spoofed_ctime_tv_nsec;
+	unsigned long           spoofed_blksize;
+	unsigned long long      spoofed_blocks;
 };
 
 struct st_susfs_try_umount {
-	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	int mnt_mode;
+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	int                     mnt_mode;
 };
 
 struct st_susfs_uname {
@@ -90,13 +105,50 @@ struct st_susfs_uname {
 	char domainname[__NEW_UTS_LEN + 1];
 };
 
+/* kernel-4.14: unsigned long target_ino + char pathname + char redirected */
 struct st_susfs_open_redirect {
-	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	char redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long           target_ino;
+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	char                    redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
 };
 
 struct st_sus_su {
 	int mode;
+};
+
+/* ===== GKI backport struct definitions ===== */
+struct st_susfs_sus_maps {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long target_ino;
+	unsigned long target_dev;
+	unsigned long long target_pgoff;
+	unsigned long target_prot;
+	unsigned long target_addr_size;
+	char spoofed_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long spoofed_ino;
+	unsigned long spoofed_dev;
+	unsigned long long spoofed_pgoff;
+	unsigned long spoofed_prot;
+	bool is_statically;
+	int compare_mode;
+	bool is_isolated_entry;
+	bool is_file;
+	unsigned long prev_target_ino;
+	unsigned long next_target_ino;
+	bool need_to_spoof_pathname;
+	bool need_to_spoof_ino;
+	bool need_to_spoof_dev;
+	bool need_to_spoof_pgoff;
+	bool need_to_spoof_prot;
+};
+
+struct st_susfs_sus_proc_fd_link {
+	char target_link_name[SUSFS_MAX_LEN_PATHNAME];
+	char spoofed_link_name[SUSFS_MAX_LEN_PATHNAME];
+};
+
+struct st_susfs_sus_memfd {
+	char target_pathname[248];
 };
 
 /* ===== Extern function declarations from fs/susfs.c =====
@@ -118,6 +170,12 @@ extern void susfs_try_umount(uid_t uid);
 extern void susfs_init(void);
 extern int susfs_enable_avc_log_spoofing(bool enabled);
 extern int susfs_hide_sus_mnts_for_non_su_procs(bool enabled);
+
+/* GKI backport externs */
+extern int susfs_add_sus_maps(struct st_susfs_sus_maps __user *user_info);
+extern int susfs_update_sus_maps(struct st_susfs_sus_maps __user *user_info);
+extern int susfs_add_sus_proc_fd_link(struct st_susfs_sus_proc_fd_link __user *user_info);
+extern int susfs_add_sus_memfd(struct st_susfs_sus_memfd __user *user_info);
 
 /* ===== SID-based domain checks =====
  * KBapna's original selinux.c declared these globals and functions
@@ -472,7 +530,11 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 			"auto_add_sus_ksu_default_mount\n"
 			"auto_add_sus_bind_mount\n"
 			"auto_add_try_umount_for_bind_mount\n"
-			"add_sus_map\n";
+			"add_sus_map\n"
+			"add_sus_maps\n"
+			"update_sus_maps\n"
+			"add_sus_proc_fd_link\n"
+			"add_sus_memfd\n";
 		if (copy_to_user(arg, features, sizeof(features)))
 			return -EFAULT;
 		if (put_user(0, (int __user *)((char __user *)arg + 8192)))
@@ -510,6 +572,23 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		set_fs(old_fs);
 		break;
 	}
+
+	/* ============ GKI backport commands ============ */
+	case CMD_SUSFS_ADD_SUS_MAPS:
+		ret = susfs_add_sus_maps((struct st_susfs_sus_maps __user *)arg);
+		break;
+
+	case CMD_SUSFS_UPDATE_SUS_MAPS:
+		ret = susfs_update_sus_maps((struct st_susfs_sus_maps __user *)arg);
+		break;
+
+	case CMD_SUSFS_ADD_SUS_PROC_FD_LINK:
+		ret = susfs_add_sus_proc_fd_link((struct st_susfs_sus_proc_fd_link __user *)arg);
+		break;
+
+	case CMD_SUSFS_ADD_SUS_MEMFD:
+		ret = susfs_add_sus_memfd((struct st_susfs_sus_memfd __user *)arg);
+		break;
 
 	default:
 		return -EOPNOTSUPP;

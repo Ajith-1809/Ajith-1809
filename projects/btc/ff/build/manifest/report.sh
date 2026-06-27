@@ -7,12 +7,12 @@ set -euo pipefail
 
 SRC="${1:-}"
 if [[ -z "$SRC" || ! -d "$SRC" ]]; then
-  # Auto-detect from cwd if called from build/sources/KBapna
-  if [[ -d "./arch/arm64/configs/vendor/phoenix_defconfig" ]]; then
+  # Auto-detect from cwd if called from build/sources/tillua467
+  if [[ -d "./arch/arm64/configs/vendor" ]]; then
     SRC="$(pwd)"
   else
     echo "ERROR: source directory not supplied and could not auto-detect." >&2
-    echo "Usage: $0 <path-to-KBapna-checkout>" >&2
+    echo "Usage: $0 <path-to-kernel-checkout>" >&2
     exit 1
   fi
 fi
@@ -62,7 +62,7 @@ manifest = {
     "toolchain_sha": toolchain_sha or "unknown",
     "susfs_flags_count": enabled,
     "susfs_flags": {k: "y" for k in flags},
-    "uname_r_pattern": "4.14.356-Unholy_V2.3-KSUNV3.0.0_SUSFSV1.5.5*",
+    "uname_r_pattern": "4.14.*-KSUNV3.2.0_SUSFSV1.5.5*",
 }
 
 out = src_root / "build" / "manifest" / "MANIFEST.json"
