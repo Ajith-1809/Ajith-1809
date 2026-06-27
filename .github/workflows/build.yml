@@ -253,6 +253,10 @@ jobs:
               '#define CMD_SUSFS_ADD_SUS_MAP_FILES       0x55566' \
               '#define CMD_SUSFS_ADD_MNT_ID_RECORDER     0x55567' \
               '#define CMD_SUSFS_REMOVE_MNT_ID_RECORDER  0x55568' \
+              '#define CMD_SUSFS_ADD_SUS_PATH_LOOP       0x55569' \
+              '#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS 0x5556a' \
+              '#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x5556b' \
+              '#define CMD_SUSFS_ADD_SUS_MAP             0x5556c' \
               >> include/linux/susfs_def.h
             echo "GKI backport CMD codes added"
           else
