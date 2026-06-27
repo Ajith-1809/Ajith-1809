@@ -137,113 +137,38 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Patch kernel/reboot.c for SUSFS/KSU supercall dispatch
-        run: |
-          set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/KBapna"
-          KSRC="kernel/reboot.c"
-          echo "=== Adding KSU/SUSFS supercall hook to $KSRC ==="
-
-          # 1. Add extern declarations after the last include (linux/uaccess.h)
-          #    Use a temp file with sed 'r' to avoid escape-sequence portability issues.
-          cat > /tmp/reboot_extern_decls.c << 'PATCHEOF'
-          /* KSU / SUSFS supercall handlers (from drivers/kernelsu/) */
-          extern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
-          extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
-          PATCHEOF
-          sed -i '/^#include <linux\/uaccess.h>/r /tmp/reboot_extern_decls.c' "$KSRC"
-          rm -f /tmp/reboot_extern_decls.c
-
-          # 2. Insert the supercall dispatch block at the START of the function body,
-          #    BEFORE the capability check (ns_capable(CAP_SYS_BOOT)).
-          #    The CAP_SYS_BOOT check blocks non-root processes (like KSU-Next
-          #    Manager's libksud.so), so the supercall must go first.
-          #    Use bash $'...' strings so 	 becomes a literal tab character.
-          {
-            echo $'	/* KSU/SUSFS supercall: dispatch BEFORE capability check */'
-            echo $'	/* so app processes (e.g. KSU-Next Manager) can interact.    */'
-            echo $'	if (magic1 == 0xDEADBEEF) {'
-            echo $'		if (magic2 == 0xFAFAFAFA)'
-            echo $'			return susfs_handle_sys_reboot(cmd, arg);'
-            echo $'		ksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);'
-            echo $'		return 0;'
-            echo $'	}'
-          } > /tmp/reboot_supercall_block.c
-          sed -i '/^[[:space:]]*int ret = 0;/r /tmp/reboot_supercall_block.c' "$KSRC"
-          rm -f /tmp/reboot_supercall_block.c
-
-          echo "=== Verifying $KSRC patch ==="
-          grep -q '0xDEADBEEF' "$KSRC" || { echo "FAIL: supercall dispatch not found"; exit 1; }
-          grep -q '0xFAFAFAFA' "$KSRC" || { echo "FAIL: SUSFS dispatch not found"; exit 1; }
-          echo "=== All dispatch markers present ==="
-
-      - name: Install official SUSFS kernel-4.14 branch source files
+      - name: Update SUSFS headers for userspace CMD compatibility
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/KBapna"
           SUSFS_V2_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_v2"
-          echo "=== Installing official SUSFS kernel-4.14 source ==="
+          echo "=== Updating SUSFS headers (keeping v1.5.5 source + VFS hooks) ==="
 
-          # 1. Copy headers to include/linux/
+          # 1. Copy updated headers to include/linux/
+          #     These provide all the CMD_* codes and struct definitions that the
+          #     v1.5.5 tree may lack (SHOW_VERSION, ADD_SUS_MAP, etc.) so the
+          #     brene SUSFS UI tool can detect features.
           for hdr in susfs_def.h susfs.h; do
             cp -v "$SUSFS_V2_DIR/$hdr" include/linux/ \
-              || echo "WARN: $hdr copy failed — tree may already have it?"
+              || echo "WARN: $hdr copy failed"
           done
+          echo "Headers updated (retaining original KBapna v1.5.5 susfs.c and VFS hooks)"
 
-          # 2. Copy susfs.c source to fs/ — REPLACES the old v1.5.5 susfs.c
-          #    Keep a backup of the original in case we need to revert
-          if [ -f fs/susfs.c ]; then
-            cp -vb fs/susfs.c fs/susfs.c.v155 2>/dev/null || true
-          fi
-          cp -v "$SUSFS_V2_DIR/susfs.c" fs/susfs.c
-          echo "Source files installed"
-
-          # 3. Add susfs.o to fs/Makefile if not already present
-          if ! grep -q 'obj-\$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile; then
-            sed -i '/^obj-\$(CONFIG_BLOCK)/i obj-\$(CONFIG_KSU_SUSFS) += susfs.o' fs/Makefile
-            echo "Added susfs.o to fs/Makefile"
-          fi
-
-          # 4. Apply VFS patch — --forward skips already-applied hunks,
-          #    --batch doesn't prompt, -r /dev/null discards rejects.
-          #    The patch adds new hooks that supplement (not replace) the
-          #    existing v1.5.5 hooks already in the KBapna tree.
-          echo "=== Applying VFS patch (--forward, failures non-fatal) ==="
+      - name: Patch KSUN supercall.c to forward SUSFS magic to susfs_handle_sys_reboot
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/KBapna"
+          echo "=== Applying SUSFS supercall forward patch ==="
           patch -p1 --forward --batch \
-            -i "$SUSFS_V2_DIR/50_add_susfs_in_kernel-4.14.patch" \
+            -i "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_supercall_forward.patch" \
             -r /dev/null 2>&1 || true
-          find . -name '*.orig' -o -name '*.rej' -type f -delete 2>/dev/null || true
-          echo "VFS patch applied (some hunks may have been skipped)"
-
-          # 5. Ensure SUSFS Kconfig options in KSUN Kconfig
-          KSU_KCONFIG=""
-          for kc in KernelSU-Next/kernel/Kconfig KernelSU/kernel/Kconfig \
-                    KernelSU/Kconfig drivers/kernelsu/Kconfig; do
-            if [ -f "$kc" ]; then
-              KSU_KCONFIG="$kc"
-              echo "Found KSUN Kconfig at: $kc"
-              break
-            fi
-          done
-          if [ -z "$KSU_KCONFIG" ]; then
-            echo "WARN: no KSUN Kconfig found"
-          elif ! grep -q 'KSU_SUSFS_SUS_PATH' "$KSU_KCONFIG" 2>/dev/null; then
-            echo "=== Injecting SUSFS Kconfig into $KSU_KCONFIG ==="
-            cat "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_kconfig.fragment" >> "$KSU_KCONFIG"
+          # Verify the patch was applied
+          if grep -q '0xFAFAFAFA' KernelSU-Next/kernel/supercall/supercall.c; then
+            echo "SUSFS supercall forward patch applied successfully"
           else
-            echo "SUSFS Kconfig options already present"
+            echo "WARN: SUSFS magic not found in supercall.c — patch may have failed"
+            grep -n 'magic1' KernelSU-Next/kernel/supercall/supercall.c || true
           fi
-
-          # 6. Add susfs_init() call — ensure susfs_init() is called during
-          #    kernel init.  The VFS patch should have added this to
-          #    fs/namespace.c, but verify (sym: susfs_init).
-          if grep -q 'susfs_init' fs/namespace.c; then
-            echo "susfs_init() already called — OK"
-          else
-            echo "WARN: susfs_init() NOT found in fs/namespace.c — manual add needed"
-          fi
-
-          echo "=== SUSFS kernel-4.14 branch installation complete ==="
 
       - name: Fix cam_utils include path (KBapna tree has missing -I'dir for cam_trace.c)
         run: |

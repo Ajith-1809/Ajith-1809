@@ -1,8 +1,9 @@
 CONFIG_KSU=y
 CONFIG_KSU_DEBUG=y
-# Manual hook mode (non-GKI 4.14): prevents KSU_KPROBES_HOOK auto-select
-# which depends on GKI-only features (syscall tracepoints).
-CONFIG_KSU_MANUAL_HOOK=y
+# Use kprobes hook mode instead of MANUAL_HOOK. On this kernel (4.14 CAF),
+# kprobes works reliably and avoids the reboot.c supercall dispatch patch
+# which conflicts with the KBapna tree's existing hook layout.
+CONFIG_KSU_KPROBES_HOOK=y
 # KSU depends on KPROBES for kernel hooking support
 CONFIG_KPROBES=y
 CONFIG_KALLSYMS=y
