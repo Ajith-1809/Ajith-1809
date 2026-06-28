@@ -440,6 +440,17 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 			 * the uname() syscall, not direct utsname() reads.
 			 */
 			susfs_spoof_uname(utsname());
+			/* Force-override the release field to hide the real kernel
+			 * version string. The userspace binary passes release=default,
+			 * which copies back the real value ("4.14.357--9-...").
+			 * Disclosure Detector flags "4.14.357" specifically as a
+			 * custom kernel backport.
+			 */
+			strncpy(utsname()->release, "4.14.275",
+				sizeof(utsname()->release) - 1);
+			utsname()->release[sizeof(utsname()->release) - 1] = ' ';
+			pr_info("ksu_susfs: spoofed release to: '%s'\n",
+				utsname()->release);
 		}
 		break;
 
