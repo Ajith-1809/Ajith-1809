@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Patch supercall.c to route SUSFS_MAGIC (0xFAFAFAFA) commands
-at the START of ksu_handle_sys_reboot(), BEFORE the KSU magic check.
+Patch supercall.c to route SUSFS commands (magic2 = 0xFAFAFAFA)
+at the START of ksu_handle_sys_reboot(), before the KSU magic check.
 
-This ensures SUSFS dispatch runs even when magic1 != KSU_INSTALL_MAGIC1
-(0xDEADBEEF). The old approach placed the SUSFS check at the end of the
-function, after KSU's early-return path — KSU returned 0 for any magic1
-that wasn't 0xDEADBEEF, so SUSFS commands were silently dropped.
+The userspace susfs binary calls:
+    reboot(0xDEADBEEF, 0xFAFAFAFA, cmd, arg)
+where magic1=0xDEADBEEF (KSU_INSTALL_MAGIC1) and magic2=0xFAFAFAFA (SUSFS_MAGIC).
+So we check magic2 (NOT magic1) for the SUSFS dispatch.
 
 Usage: python3 patch_supercall.py [path/to/supercall.c]
 
@@ -34,14 +34,19 @@ def find_file():
 
 
 def patch_file(path):
-    """Forward-patch supercall.c: insert SUSFS dispatch BEFORE the
-    KSU magic1 != KSU_INSTALL_MAGIC1 early-return check."""
+    """Forward-patch supercall.c: insert SUSFS dispatch (checking magic2)
+    BEFORE the KSU magic1 != KSU_INSTALL_MAGIC1 early-return check.
+
+    The userspace susfs binary sends reboot(0xDEADBEEF, 0xFAFAFAFA, cmd, arg)
+    where magic1=0xDEADBEEF is KSU's magic and magic2=0xFAFAFAFA is SUSFS magic.
+    We intercept magic2 BEFORE KSU processes magic1."""
     with open(path) as f:
         content = f.read()
 
+    # The SUSFS dispatch block: checks magic2 (not magic1) before any KSU check
     forward_code = (
-        '\t/* Forward SUSFS dispatch — check magic BEFORE KSU magic check */\n'
-        '\tif (magic1 == 0xFAFAFAFA) {\n'
+        '\t/* Forward SUSFS dispatch — SUSFS uses magic2 = 0xFAFAFAFA */\n'
+        '\tif (magic2 == 0xFAFAFAFA) {\n'
         '\t\textern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);\n'
         '\t\treturn susfs_handle_sys_reboot(cmd, *arg);\n'
         '\t}\n'
@@ -54,7 +59,7 @@ def patch_file(path):
         content = content.replace(old_line, forward_code, 1)
         with open(path, 'w') as f:
             f.write(content)
-        print(f"OK: forward-patched {path}")
+        print(f"OK: forward-patched {path} (checks magic2=0xFAFAFAFA)")
         return True
     else:
         print(f"ERROR: could not find anchor pattern in {path}")
