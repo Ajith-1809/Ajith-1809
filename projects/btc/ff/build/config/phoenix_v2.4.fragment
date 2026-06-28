@@ -1,5 +1,5 @@
 # Kernel naming - set custom localversion
-CONFIG_LOCALVERSION="-unholy-kernel-with-ak's"
+CONFIG_LOCALVERSION="-unholy-kernel-with-aks"
 # CONFIG_LOCALVERSION_AUTO is not set
 
 # SUSFS features for phoenix kernel (tillua467 source, v2.4 tag)
