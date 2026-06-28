@@ -1,3 +1,7 @@
+# Kernel naming - set custom localversion
+CONFIG_LOCALVERSION="-unholy-kernel-with-ak's"
+# CONFIG_LOCALVERSION_AUTO is not set
+
 # SUSFS features for phoenix kernel (tillua467 source, v2.4 tag)
 # Appended to vendor/phoenix_defconfig before olddefconfig
 # This enables all SUSFS features including GKI backport features
