@@ -162,6 +162,7 @@ extern int susfs_add_sus_kstat(struct st_susfs_sus_kstat __user *user_info);
 extern int susfs_update_sus_kstat(struct st_susfs_sus_kstat __user *user_info);
 extern int susfs_add_try_umount(struct st_susfs_try_umount __user *user_info);
 extern int susfs_set_uname(struct st_susfs_uname __user *user_info);
+extern void susfs_spoof_uname(struct new_utsname *tmp);
 extern int susfs_set_cmdline_or_bootconfig(char __user *cmdline);
 extern int susfs_add_open_redirect(struct st_susfs_open_redirect __user *user_info);
 extern int susfs_sus_su(struct st_sus_su __user *user_info);
@@ -432,6 +433,14 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ SPOOF_UNAME commands ============ */
 	case CMD_SUSFS_SET_UNAME:
 		ret = susfs_set_uname((struct st_susfs_uname __user *)arg);
+		if (ret == 0) {
+			/* Also update the system utsname directly so /proc/version,
+			 * /proc/sys/kernel/osrelease, and /proc/sys/kernel/version
+			 * return spoofed values. SUSFS's uname hook only applies to
+			 * the uname() syscall, not direct utsname() reads.
+			 */
+			susfs_spoof_uname(utsname());
+		}
 		break;
 
 	/* ============ ENABLE_LOG ============ */
