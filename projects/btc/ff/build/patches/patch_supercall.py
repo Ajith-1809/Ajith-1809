@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
 Patch supercall.c to route SUSFS_MAGIC (0xFAFAFAFA) commands
-through ksu_handle_sys_reboot() to susfs_handle_sys_reboot().
+at the START of ksu_handle_sys_reboot(), BEFORE the KSU magic check.
+
+This ensures SUSFS dispatch runs even when magic1 != KSU_INSTALL_MAGIC1
+(0xDEADBEEF). The old approach placed the SUSFS check at the end of the
+function, after KSU's early-return path — KSU returned 0 for any magic1
+that wasn't 0xDEADBEEF, so SUSFS commands were silently dropped.
 
 Usage: python3 patch_supercall.py [path/to/supercall.c]
 
@@ -29,34 +34,27 @@ def find_file():
 
 
 def patch_file(path):
-    """Insert SUSFS dispatch before the final return 0; in ksu_handle_sys_reboot."""
+    """Forward-patch supercall.c: insert SUSFS dispatch BEFORE the
+    KSU magic1 != KSU_INSTALL_MAGIC1 early-return check."""
     with open(path) as f:
         content = f.read()
 
-    # The SUSFS dispatch code to insert (tab-indented to match existing code)
-    susfs_code = (
-        '\t#ifdef CONFIG_KSU_SUSFS\n'
-        '\t/* SUSFS command dispatch (magic2 = 0xFAFAFAFA) */\n'
-        '\tif (magic2 == SUSFS_MAGIC) {\n'
+    forward_code = (
+        '\t/* Forward SUSFS dispatch — check magic BEFORE KSU magic check */\n'
+        '\tif (magic1 == 0xFAFAFAFA) {\n'
         '\t\textern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);\n'
         '\t\treturn susfs_handle_sys_reboot(cmd, *arg);\n'
         '\t}\n'
-        '#endif\n'
-        '\n'
-        '\treturn 0;\n'
+        '\tif (magic1 != KSU_INSTALL_MAGIC1)\n'
     )
 
-    # Anchor: the function-ending return 0; followed by } and #ifdef KSU_KPROBES_HOOK
-    anchor = '\treturn 0;\n}\n\n#ifdef KSU_KPROBES_HOOK'
-    if anchor not in content:
-        # Try without the blank line
-        anchor = '\treturn 0;\n}\n#ifdef KSU_KPROBES_HOOK'
+    old_line = '\tif (magic1 != KSU_INSTALL_MAGIC1)\n'
 
-    if anchor in content:
-        content = content.replace(anchor, susfs_code + '}\n\n#ifdef KSU_KPROBES_HOOK')
+    if old_line in content:
+        content = content.replace(old_line, forward_code, 1)
         with open(path, 'w') as f:
             f.write(content)
-        print(f"OK: patched {path}")
+        print(f"OK: forward-patched {path}")
         return True
     else:
         print(f"ERROR: could not find anchor pattern in {path}")

@@ -235,13 +235,13 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Patch KSUN supercall.c for SUSFS command dispatch
+      - name: Patch KSUN supercall.c for SUSFS command dispatch (forward)
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
-          echo "=== Patching supercall.c for SUSFS dispatch (magic2=0xFAFAFAFA) ==="
+          echo "=== Forward-patching supercall.c for SUSFS dispatch (magic1=0xFAFAFAFA before KSU magic check) ==="
           python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_supercall.py"
-          echo "=== supercall.c patched ==="
+          echo "=== supercall.c forward-patched ==="
 
       - name: Update SUSFS header CMD defines
         run: |
@@ -253,7 +253,7 @@ jobs:
               '/* GKI backport CMD codes (non-conflicting with kernel-4.14 0x55550-0x555d0 range) */' \
               '#define CMD_SUSFS_ADD_SUS_MAPS_STATICALLY 0x5555e' \
               '#define CMD_SUSFS_ADD_SUS_PROC_FD_LINK    0x5555f' \
-              '#define CMD_SUSFS_ADD_SUS_MAPS            0x55561' \
+              '#define CMD_SUSFS_ADD_SUS_MAPS            0x5556d' \
               '#define CMD_SUSFS_UPDATE_SUS_MAPS         0x55562' \
               '#define CMD_SUSFS_ADD_SUS_MEMFD           0x55563' \
               '#define CMD_SUSFS_HIDE_SUS_MOUNT          0x55564' \

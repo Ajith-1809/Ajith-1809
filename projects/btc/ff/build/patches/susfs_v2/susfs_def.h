@@ -62,7 +62,7 @@
 /* GKI backport CMD codes (non-conflicting with kernel-4.14 0x55550-0x555d0 range) */
 #define CMD_SUSFS_ADD_SUS_MAPS_STATICALLY 0x5555e
 #define CMD_SUSFS_ADD_SUS_PROC_FD_LINK    0x5555f
-#define CMD_SUSFS_ADD_SUS_MAPS            0x55561
+#define CMD_SUSFS_ADD_SUS_MAPS            0x5556d
 #define CMD_SUSFS_UPDATE_SUS_MAPS         0x55562
 #define CMD_SUSFS_ADD_SUS_MEMFD           0x55563
 #define CMD_SUSFS_HIDE_SUS_MOUNT          0x55564

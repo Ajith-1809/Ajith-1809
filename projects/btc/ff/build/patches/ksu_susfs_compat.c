@@ -420,6 +420,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
+	case 0x55561: /* userspace v1.5.5 binary sends this */
 	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
@@ -444,6 +445,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ ENABLE_AVC_LOG_SPOOFING (GKI backport stub) ============ */
+	case 0x60010: /* userspace v1.5.5 GKI binary sends this */
 	case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
@@ -560,6 +562,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	 * checks against the SUS_PATH_HLIST.
 	 * Same struct compat pattern: old tool sends pathname at offset 0
 	 * (no target_ino), new struct expects target_ino at offset 0. */
+	case 0x60020: /* userspace v1.5.5 GKI binary sends this */
 	case CMD_SUSFS_ADD_SUS_MAP: {
 		struct st_susfs_sus_path _info;
 		char _oldp[SUSFS_MAX_LEN_PATHNAME];
