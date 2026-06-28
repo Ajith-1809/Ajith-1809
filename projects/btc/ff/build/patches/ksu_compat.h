@@ -95,8 +95,9 @@ strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count)
 #define CMD_SUSFS_SHOW_VARIANT 0x555e3
 #endif
 
-/* Forward declarations for SUSFS SHOW functions — defined in fs/susfs.c */
+/* Forward declarations for SUSFS functions */
 #ifdef CONFIG_KSU_SUSFS
+int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
 void susfs_get_enabled_features(void __user **user_info);
 void susfs_show_variant(void __user **user_info);
 void susfs_show_version(void __user **user_info);

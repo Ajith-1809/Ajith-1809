@@ -235,6 +235,42 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
+      - name: Patch KSUN supercall.c for SUSFS command dispatch
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Patching supercall.c for SUSFS dispatch (magic2=0xFAFAFAFA) ==="
+          python3 -c "
+import sys
+path = 'drivers/kernelsu/supercall/supercall.c'
+with open(path) as f:
+    content = f.read()
+
+susfs_code = '''\t#ifdef CONFIG_KSU_SUSFS
+\t/* SUSFS command dispatch (magic2 = 0xFAFAFAFA) */
+\tif (magic2 == SUSFS_MAGIC) {
+\t\textern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
+\t\treturn susfs_handle_sys_reboot(cmd, *arg);
+\t}
+#endif
+
+'''
+
+anchor = '\treturn 0;\n}\n\n#ifdef KSU_KPROBES_HOOK'
+if anchor not in content:
+    anchor = '\treturn 0;\n}\n#ifdef KSU_KPROBES_HOOK'
+
+if anchor in content:
+    content = content.replace(anchor, susfs_code + anchor)
+    with open(path, 'w') as f:
+        f.write(content)
+    print('supercall.c: SUSFS dispatch added successfully')
+else:
+    print('ERROR: could not find anchor pattern in supercall.c')
+    sys.exit(1)
+"
+          echo "=== supercall.c patched ==="
+
       - name: Update SUSFS header CMD defines
         run: |
           set -euo pipefail
