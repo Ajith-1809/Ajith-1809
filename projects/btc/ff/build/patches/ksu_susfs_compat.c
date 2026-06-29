@@ -314,6 +314,18 @@ static int __init ksu_susfs_compat_init(void)
 	susfs_init();
 	pr_info("ksu_susfs_compat: SUSFS initialized via late_initcall\n");
 #endif
+	/* Spoof kernel release at boot time — overrides utsname for ALL
+	 * userspace processes, keeping Disclosure Detector item 4 clean
+	 * ("release name not modified").  This runs before init so
+	 * uname -r and /proc/version both read "4.14.275" immediately.
+	 */
+	{
+		char orig[65];
+		strncpy(orig, init_uts_ns.name.release, 64);
+		orig[64] = '\0';
+		memcpy(init_uts_ns.name.release, "4.14.275\0", 10);
+		pr_info("ksu_susfs_compat: release spoof → 4.14.275 (was %s)\n", orig);
+	}
 	return 0;
 }
 late_initcall(ksu_susfs_compat_init);
