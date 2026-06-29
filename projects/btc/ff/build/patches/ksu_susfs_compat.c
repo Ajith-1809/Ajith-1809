@@ -35,27 +35,15 @@
 #include <linux/utsname.h>
 #include <linux/kprobes.h>
 
-/* ===== SUSFS structs and function declarations =====
+/* ===== SUSFS structs matching kernel-4.14 branch =====
  *
- * The KBapna v1.5.5 tree defines structs inside CONFIG guards under
- * different symbol names than the v2 kernel-4.14 branch.  Rather than
- * depending on which susfs.h is installed, we define the structs we
- * need locally here, matching v1.5.5 layout (pathname-first, no
- * target_ino/is_statically prefix).  Functions are declared with extern
- * — they resolve at link time against fs/susfs.o.
- */
-#include <linux/susfs_def.h>
-
-/* ===== SUSFS structs matching kernel-4.14 branch layout =====
+ * All structs below match the kernel-4.14 branch of simonpunk/susfs4ksu,
+ * with target_ino/is_statically prefix fields at offset 0.  The dispatch
+ * code passes these directly to the real susfs_* handlers via set_fs(KERNEL_DS)
+ * — no manual format conversion is needed.
  *
- * These MUST match the struct definitions in include/linux/susfs.h
- * from the kernel-4.14 branch (not v1.5.5). The kernel-4.14 layout
- * places target_ino/is_statically BEFORE target_pathname, unlike
- * the v1.5.5 layout which has pathname at offset 0.
- *
- * When the userspace tool sends the old v1.5.5 format (pathname-only),
- * the dispatch code manually converts it to the new format before
- * calling the real susfs_* handler.
+ * Functions are declared with extern — they resolve at link time
+ * against fs/susfs.o (compiled from fs/susfs.c).
  */
 #include <linux/susfs_def.h>
 
@@ -352,18 +340,12 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ SUS_PATH commands ============ */
 	case CMD_SUSFS_ADD_SUS_PATH:
 	case CMD_SUSFS_ADD_SUS_PATH_LOOP: {
-		/* Old v1.5.5 tool sends struct WITHOUT target_ino
-		 * (pathname at offset 0). Kernel-4.14 branch expects
-		 * target_ino first. Read old pathname, build proper
-		 * struct, forward via set_fs(KERNEL_DS).
-		 * ADD_SUS_PATH_LOOP is the same code path (the loop flag
-		 * is a GKI optimization; on 4.14 we just do add_sus_path). */
+		/* Direct struct passthrough: our kernel-4.14 struct layout
+		 * (target_ino at offset 0, pathname at offset 8) matches
+		 * what the userspace binary sends. No conversion needed. */
 		struct st_susfs_sus_path _info;
-		char _oldp[SUSFS_MAX_LEN_PATHNAME];
-		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+		if (copy_from_user(&_info, arg, sizeof(_info)))
 			return -EFAULT;
-		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)&_info);
@@ -384,47 +366,22 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ SUS_KSTAT commands ============ */
-	case CMD_SUSFS_ADD_SUS_KSTAT: {
-		/* Old tool sends struct WITHOUT target_ino/is_statically.
-		 * New struct has: int + padding + unsigned long + pathname.
-		 * Read old pathname, build proper struct, forward via KERNEL_DS. */
-		struct st_susfs_sus_kstat _info;
-		char _oldp[SUSFS_MAX_LEN_PATHNAME];
-		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
-			return -EFAULT;
-		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
-		set_fs(old_fs);
-		break;
-	}
-
-	case CMD_SUSFS_UPDATE_SUS_KSTAT: {
-		struct st_susfs_sus_kstat _info;
-		char _oldp[SUSFS_MAX_LEN_PATHNAME];
-		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
-			return -EFAULT;
-		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		ret = susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
-		set_fs(old_fs);
-		break;
-	}
-
+	case CMD_SUSFS_ADD_SUS_KSTAT:
+	case CMD_SUSFS_UPDATE_SUS_KSTAT:
 	case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY: {
+		/* Direct struct passthrough: kernel-4.14 struct layout
+		 * (is_statically+padding+target_ino at offset 0, pathname
+		 * at offset 16) matches what the userspace binary sends.
+		 * No conversion needed. UPDATE vs ADD distinguishes path. */
 		struct st_susfs_sus_kstat _info;
-		char _oldp[SUSFS_MAX_LEN_PATHNAME];
-		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+		if (copy_from_user(&_info, arg, sizeof(_info)))
 			return -EFAULT;
-		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
+		if (cmd == CMD_SUSFS_UPDATE_SUS_KSTAT)
+			ret = susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
+		else
+			ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)&_info);
 		set_fs(old_fs);
 		break;
 	}
@@ -526,17 +483,13 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 
 	/* ============ OPEN_REDIRECT ============ */
 	case CMD_SUSFS_ADD_OPEN_REDIRECT: {
-		/* Old tool sends struct WITHOUT target_ino.
-		 * New struct has target_ino first; read old pathnames
-		 * and forward via KERNEL_DS. */
+		/* Direct struct passthrough: kernel-4.14 struct layout
+		 * (target_ino at offset 0, target_pathname at offset 8,
+		 * redirected_pathname at offset 264) matches the binary.
+		 * No conversion needed. */
 		struct st_susfs_open_redirect _info;
-		char _oldp[SUSFS_MAX_LEN_PATHNAME * 2];
-		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+		if (copy_from_user(&_info, arg, sizeof(_info)))
 			return -EFAULT;
-		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, SUSFS_MAX_LEN_PATHNAME);
-		memcpy(_info.redirected_pathname, _oldp + SUSFS_MAX_LEN_PATHNAME,
-		       SUSFS_MAX_LEN_PATHNAME);
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)&_info);
@@ -623,17 +576,13 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ SUS_MAP (add_sus_map from userspace) ============ */
-	/* Route to add_sus_path since susfs_sus_ino_for_show_map_vma
-	 * checks against the SUS_PATH_HLIST.
-	 * Same struct compat pattern: old tool sends pathname at offset 0
-	 * (no target_ino), new struct expects target_ino at offset 0. */
+	/* Routes to susfs_add_sus_path (kernel-4.14 treats SUS_MAP as path
+	 * hiding via the SUS_PATH_HLIST). Direct struct passthrough matches
+	 * the kernel-4.14 layout: target_ino at offset 0, pathname at 8. */
 	case CMD_SUSFS_ADD_SUS_MAP: {
 		struct st_susfs_sus_path _info;
-		char _oldp[SUSFS_MAX_LEN_PATHNAME];
-		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
+		if (copy_from_user(&_info, arg, sizeof(_info)))
 			return -EFAULT;
-		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)&_info);
