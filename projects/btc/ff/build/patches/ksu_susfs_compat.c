@@ -372,9 +372,16 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ SUS_MOUNT commands ============ */
-	case CMD_SUSFS_ADD_SUS_MOUNT:
-		ret = susfs_add_sus_mount((struct st_susfs_sus_mount __user *)arg);
+	case CMD_SUSFS_ADD_SUS_MOUNT: {
+		struct st_susfs_sus_mount _info;
+		if (copy_from_user(&_info, arg, sizeof(_info)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_mount((struct st_susfs_sus_mount __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
 	/* ============ SUS_KSTAT commands ============ */
 	case CMD_SUSFS_ADD_SUS_KSTAT: {
@@ -423,9 +430,16 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ TRY_UMOUNT commands ============ */
-	case CMD_SUSFS_ADD_TRY_UMOUNT:
-		ret = susfs_add_try_umount((struct st_susfs_try_umount __user *)arg);
+	case CMD_SUSFS_ADD_TRY_UMOUNT: {
+		struct st_susfs_try_umount _info;
+		if (copy_from_user(&_info, arg, sizeof(_info)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_try_umount((struct st_susfs_try_umount __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
 	case CMD_SUSFS_RUN_UMOUNT_FOR_CURRENT_MNT_NS:
 		susfs_try_umount(current_uid().val);
@@ -435,6 +449,8 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
 	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS:
 	/* Alias: v1.5.5 userspace binary sends 0x60020 for this CMD */
+	/* Alias: GKI userspace binary sends 0x55561 */
+	case 0x55561:
 	case 0x60020: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
@@ -444,8 +460,14 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ SPOOF_UNAME commands ============ */
-	case CMD_SUSFS_SET_UNAME:
-		ret = susfs_set_uname((struct st_susfs_uname __user *)arg);
+	case CMD_SUSFS_SET_UNAME: {
+		struct st_susfs_uname _info;
+		if (copy_from_user(&_info, arg, sizeof(_info)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_set_uname((struct st_susfs_uname __user *)&_info);
+		set_fs(old_fs);
 		if (ret == 0) {
 			/* Also update the system utsname directly so /proc/version,
 			 * /proc/sys/kernel/osrelease, and /proc/sys/kernel/version
@@ -461,11 +483,13 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 			 */
 			strncpy(utsname()->release, "4.14.275",
 				sizeof(utsname()->release) - 1);
-			utsname()->release[sizeof(utsname()->release) - 1] = ' ';
+			utsname()->release[sizeof(utsname()->release) - 1] = '\0';
 			pr_info("ksu_susfs: spoofed release to: '%s'\n",
 				utsname()->release);
 		}
 		break;
+
+	}
 
 	/* ============ ENABLE_LOG ============ */
 	case CMD_SUSFS_ENABLE_LOG: {
@@ -489,9 +513,16 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ SPOOF_CMDLINE ============ */
-	case CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG:
-		ret = susfs_set_cmdline_or_bootconfig((char __user *)arg);
+	case CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG: {
+		char _cmdline[SUSFS_FAKE_CMDLINE_OR_BOOTCONFIG_SIZE];
+		if (copy_from_user(_cmdline, arg, sizeof(_cmdline)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_set_cmdline_or_bootconfig((char __user *)_cmdline);
+		set_fs(old_fs);
 		break;
+	}
 
 	/* ============ OPEN_REDIRECT ============ */
 	case CMD_SUSFS_ADD_OPEN_REDIRECT: {
@@ -536,7 +567,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ SHOW commands ============ */
 	case CMD_SUSFS_SHOW_VERSION: {
 		/* struct { char version[16]; int err; } */
-		if (copy_to_user(arg, "v1.5.5", sizeof("v1.5.5")))
+		if (copy_to_user(arg, "v1.5.12", sizeof("v1.5.12")))
 			return -EFAULT;
 		if (put_user(0, (int __user *)((char __user *)arg + 16)))
 			return -EFAULT;
