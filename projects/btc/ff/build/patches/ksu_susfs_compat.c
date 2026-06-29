@@ -433,7 +433,9 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
-	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS: {
+	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS:
+	/* Alias: v1.5.5 userspace binary sends 0x60020 for this CMD */
+	case 0x60020: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
 			return -EFAULT;
@@ -476,7 +478,9 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ ENABLE_AVC_LOG_SPOOFING (GKI backport stub) ============ */
-	case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING: {
+	case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING:
+	/* Alias: v1.5.5 userspace binary sends 0x60010 for this CMD */
+	case 0x60010: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
 			return -EFAULT;
