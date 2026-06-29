@@ -535,6 +535,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		 * Standard SUSFS kernel-4.14 format (not command names). */
 		static const char features[] =
 			"CONFIG_KSU_SUSFS_SUS_PATH=y\n"
+			"CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y\n"
 			"CONFIG_KSU_SUSFS_SUS_MOUNT=y\n"
 			"CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y\n"
 			"CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y\n"
