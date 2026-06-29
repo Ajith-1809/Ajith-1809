@@ -14,8 +14,8 @@ CONFIG_KALLSYMS=y
 CONFIG_KSU=y
 CONFIG_KSU_SUSFS=y
 
-# KernelSU hooks — manual hook mode (directly in kernel/reboot.c, no kprobe)
-# CONFIG_KSU_KPROBES_HOOK is not set
+# KernelSU hooks (kprobes-based for non-GKI kernels 4.14)
+CONFIG_KSU_KPROBES_HOOK=y
 CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
 
 # SUSFS core features
