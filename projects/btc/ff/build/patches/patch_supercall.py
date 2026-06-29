@@ -44,14 +44,20 @@ def patch_file(path):
         content = f.read()
 
     # The SUSFS dispatch block: checks magic2 (not magic1) before any KSU check
+    # NOTE: SUSFS commands are now handled by the patch_reboot.py in kernel/reboot.c
+    # directly. This kprobe handler just returns 0 (skip KSU processing for SUSFS),
+    # letting the real sys_reboot() run and handle the command via the direct patch.
     forward_code = (
-        '\t/* Forward SUSFS dispatch — SUSFS uses magic2 = 0xFAFAFAFA */\n'
+        '\t/* SUSFS dispatch — kernel/reboot.c handles return value directly */\n'
         '\tif (magic2 == 0xFAFAFAFA) {\n'
-        '\t\textern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);\n'
-        '\t\treturn susfs_handle_sys_reboot(cmd, *arg);\n'
+        '\t\treturn 0;\n'
         '\t}\n'
         '\tif (magic1 != KSU_INSTALL_MAGIC1)\n'
     )
+
+    # Replace the first `if (magic1 != KSU_INSTALL_MAGIC1)` check with:
+    #   1. SUSFS early-return (magic2 check)
+    #   2. The original KSU check
 
     old_line = '\tif (magic1 != KSU_INSTALL_MAGIC1)\n'
 

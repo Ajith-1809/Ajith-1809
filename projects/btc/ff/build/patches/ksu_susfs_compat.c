@@ -98,12 +98,8 @@ struct st_susfs_try_umount {
 };
 
 struct st_susfs_uname {
-	char sysname[__NEW_UTS_LEN + 1];
-	char nodename[__NEW_UTS_LEN + 1];
-	char release[__NEW_UTS_LEN + 1];
-	char version[__NEW_UTS_LEN + 1];
-	char machine[__NEW_UTS_LEN + 1];
-	char domainname[__NEW_UTS_LEN + 1];
+	char                    release[__NEW_UTS_LEN + 1];
+	char                    version[__NEW_UTS_LEN + 1];
 };
 
 /* kernel-4.14: unsigned long target_ino + char pathname + char redirected */
@@ -119,28 +115,28 @@ struct st_sus_su {
 
 /* ===== GKI backport struct definitions ===== */
 struct st_susfs_sus_maps {
-	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned long target_ino;
-	unsigned long target_dev;
-	unsigned long long target_pgoff;
-	unsigned long target_prot;
-	unsigned long target_addr_size;
-	char spoofed_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned long spoofed_ino;
-	unsigned long spoofed_dev;
-	unsigned long long spoofed_pgoff;
-	unsigned long spoofed_prot;
-	bool is_statically;
-	int compare_mode;
-	bool is_isolated_entry;
-	bool is_file;
-	unsigned long prev_target_ino;
-	unsigned long next_target_ino;
-	bool need_to_spoof_pathname;
-	bool need_to_spoof_ino;
-	bool need_to_spoof_dev;
-	bool need_to_spoof_pgoff;
-	bool need_to_spoof_prot;
+	bool                    is_statically;
+	int                     compare_mode;
+	bool                    is_isolated_entry;
+	bool                    is_file;
+	unsigned long           prev_target_ino;
+	unsigned long           next_target_ino;
+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long           target_ino;
+	unsigned long           target_dev;
+	unsigned long long      target_pgoff;
+	unsigned long           target_prot;
+	unsigned long           target_addr_size;
+	char                    spoofed_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long           spoofed_ino;
+	unsigned long           spoofed_dev;
+	unsigned long long      spoofed_pgoff;
+	unsigned long           spoofed_prot;
+	bool                    need_to_spoof_pathname;
+	bool                    need_to_spoof_ino;
+	bool                    need_to_spoof_dev;
+	bool                    need_to_spoof_pgoff;
+	bool                    need_to_spoof_prot;
 };
 
 struct st_susfs_sus_proc_fd_link {
@@ -151,6 +147,10 @@ struct st_susfs_sus_proc_fd_link {
 struct st_susfs_sus_memfd {
 	char target_pathname[248];
 };
+
+#ifndef SUSFS_MAX_LEN_MFD_NAME
+#define SUSFS_MAX_LEN_MFD_NAME 248
+#endif
 
 /* ===== Extern function declarations from fs/susfs.c =====
  * These are the real SUSFS handlers linked into vmlinux.
@@ -534,7 +534,9 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		if (copy_from_user(_oldp, arg, sizeof(_oldp)))
 			return -EFAULT;
 		memset(&_info, 0, sizeof(_info));
-		memcpy(_info.target_pathname, _oldp, sizeof(_oldp));
+		memcpy(_info.target_pathname, _oldp, SUSFS_MAX_LEN_PATHNAME);
+		memcpy(_info.redirected_pathname, _oldp + SUSFS_MAX_LEN_PATHNAME,
+		       SUSFS_MAX_LEN_PATHNAME);
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)&_info);
@@ -640,21 +642,49 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ GKI backport commands ============ */
-	case CMD_SUSFS_ADD_SUS_MAPS:
-		ret = susfs_add_sus_maps((struct st_susfs_sus_maps __user *)arg);
+	case CMD_SUSFS_ADD_SUS_MAPS: {
+		struct st_susfs_sus_maps _info;
+		if (copy_from_user(&_info, arg, sizeof(_info)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_maps((struct st_susfs_sus_maps __user *)&_info);
+		set_fs(old_fs);
 		break;
+	}
 
-	case CMD_SUSFS_UPDATE_SUS_MAPS:
-		ret = susfs_update_sus_maps((struct st_susfs_sus_maps __user *)arg);
+	case CMD_SUSFS_UPDATE_SUS_MAPS: {
+		struct st_susfs_sus_maps _info2;
+		if (copy_from_user(&_info2, arg, sizeof(_info2)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_update_sus_maps((struct st_susfs_sus_maps __user *)&_info2);
+		set_fs(old_fs);
 		break;
+	}
 
-	case CMD_SUSFS_ADD_SUS_PROC_FD_LINK:
-		ret = susfs_add_sus_proc_fd_link((struct st_susfs_sus_proc_fd_link __user *)arg);
+	case CMD_SUSFS_ADD_SUS_PROC_FD_LINK: {
+		struct st_susfs_sus_proc_fd_link _info3;
+		if (copy_from_user(&_info3, arg, sizeof(_info3)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_proc_fd_link((struct st_susfs_sus_proc_fd_link __user *)&_info3);
+		set_fs(old_fs);
 		break;
+	}
 
-	case CMD_SUSFS_ADD_SUS_MEMFD:
-		ret = susfs_add_sus_memfd((struct st_susfs_sus_memfd __user *)arg);
+	case CMD_SUSFS_ADD_SUS_MEMFD: {
+		struct st_susfs_sus_memfd _info4;
+		if (copy_from_user(&_info4, arg, sizeof(_info4)))
+			return -EFAULT;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		ret = susfs_add_sus_memfd((struct st_susfs_sus_memfd __user *)&_info4);
+		set_fs(old_fs);
 		break;
+	}
 
 	default:
 		return -EOPNOTSUPP;

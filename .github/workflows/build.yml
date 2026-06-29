@@ -243,6 +243,14 @@ jobs:
           python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_supercall.py"
           echo "=== supercall.c forward-patched ==="
 
+      - name: Patch kernel/reboot.c for SUSFS direct return (return 0 to userspace)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Patching kernel/reboot.c for SUSFS direct syscall return ==="
+          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_reboot.py"
+          echo "=== kernel/reboot.c patched ==="
+
       - name: Update SUSFS header CMD defines
         run: |
           set -euo pipefail
