@@ -530,32 +530,30 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 
 	case CMD_SUSFS_SHOW_ENABLED_FEATURES: {
 		/* struct { char features[8192]; int err; } */
+		/* Return CONFIG names so SUSFS4KSU module scripts and WebUI
+		 * can detect features via grep for CONFIG_KSU_SUSFS_*.
+		 * Standard SUSFS kernel-4.14 format (not command names). */
 		static const char features[] =
-			"add_sus_path\n"
-			"add_sus_path_loop\n"
-			"enable_avc_log_spoofing\n"
-			"hide_sus_mnts_for_non_su_procs\n"
-			"add_sus_kstat\n"
-			"update_sus_kstat\n"
-			"add_sus_kstat_statically\n"
-			"set_uname\n"
-			"enable_log\n"
-			"set_cmdline_or_bootconfig\n"
-			"add_open_redirect\n"
-			"add_sus_mount\n"
-			"add_try_umount\n"
-			"run_try_umount\n"
-			"hide_ksu_susfs_symbols\n"
-			"spoof_cmdline_or_bootconfig\n"
-			"sus_overlayfs\n"
-			"auto_add_sus_ksu_default_mount\n"
-			"auto_add_sus_bind_mount\n"
-			"auto_add_try_umount_for_bind_mount\n"
-			"add_sus_map\n"
-			"add_sus_maps\n"
-			"update_sus_maps\n"
-			"add_sus_proc_fd_link\n"
-			"add_sus_memfd\n";
+			"CONFIG_KSU_SUSFS_SUS_PATH=y\n"
+			"CONFIG_KSU_SUSFS_SUS_MOUNT=y\n"
+			"CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y\n"
+			"CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y\n"
+			"CONFIG_KSU_SUSFS_SUS_KSTAT=y\n"
+			"CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y\n"
+			"CONFIG_KSU_SUSFS_TRY_UMOUNT=y\n"
+			"CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y\n"
+			"CONFIG_KSU_SUSFS_SPOOF_UNAME=y\n"
+			"CONFIG_KSU_SUSFS_ENABLE_LOG=y\n"
+			"CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y\n"
+			"CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y\n"
+			"CONFIG_KSU_SUSFS_OPEN_REDIRECT=y\n"
+			"CONFIG_KSU_SUSFS_SUS_MAP=y\n"
+			"CONFIG_KSU_SUSFS_SUS_PROC_FD_LINK=y\n"
+			"CONFIG_KSU_SUSFS_SUS_MEMFD=y\n"
+			"CONFIG_KSU_SUSFS_SUS_KSTAT_STATICALLY=y\n"
+			"CONFIG_KSU_SUSFS_SUS_KSTAT_FULL_SPOOF=y\n"
+			"CONFIG_KSU_SUSFS_SUS_BRIDGE_FILTER=y\n"
+			"CONFIG_KSU_SUSFS_SUS_MOUNT_REMOUNT=y\n";
 		if (copy_to_user(arg, features, sizeof(features)))
 			return -EFAULT;
 		if (put_user(0, (int __user *)((char __user *)arg + 8192)))
