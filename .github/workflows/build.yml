@@ -235,15 +235,7 @@ jobs:
           done
           echo "=== Compat layer applied ==="
 
-      - name: Patch KSUN supercall.c for SUSFS command dispatch (forward)
-        run: |
-          set -euo pipefail
-          cd "$PROJECT_ROOT/build/sources/tillua467"
-          echo "=== Forward-patching supercall.c for SUSFS dispatch (magic1=0xFAFAFAFA before KSU magic check) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_supercall.py"
-          echo "=== supercall.c forward-patched ==="
-
-      - name: Patch kernel/reboot.c for SUSFS direct return (return 0 to userspace)
+      - name: Patch kernel/reboot.c for SUSFS dispatch — manual hook mode (return 0 to userspace)
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"

@@ -3,14 +3,21 @@
 Patch kernel/reboot.c to intercept SUSFS magic values (magic2 = 0xFAFAFAFA)
 and return directly from the syscall, bypassing the CAP_SYS_BOOT check.
 
-The KSU-Next kprobe on __arm64_sys_reboot intercepts SUSFS CMDs in its
-pre_handler (ksu_handle_sys_reboot), but ALWAYS returns 0 — so the real
-sys_reboot() executes and returns -EINVAL (wrong magics for reboot).
-The SUSFS userspace binary checks the syscall return value and reports
-"SUSFS operation not supported" for any non-zero return.
+MANUAL HOOK MODE (CONFIG_KSU_KPROBES_HOOK=n):
+Instead of using a kprobe on __arm64_sys_reboot (which runs in the kprobe
+pre_handler and returns 0, letting the real syscall execute and return
+-EINVAL), we insert a direct check in the REAL SYSCALL BODY. This means
+the return value from our handler (0 = success) reaches userspace directly.
 
-This patch inserts a direct check in the REAL sys_reboot body so the
-SUSFS handler's return value (0 = success) reaches userspace directly.
+The kprobe approach had a fundamental problem: the pre_handler ALWAYS
+returns 0 (continue to real syscall), and the real sys_reboot() returns
+-EINVAL because 0xDEADBEEF/0xFAFAFAFA aren't valid reboot magics. The
+SUSFS binary treats any non-zero return as "operation not supported".
+
+With manual hook mode, we patch SYSCALL_DEFINE4(reboot) in kernel/reboot.c
+to check magic2 == 0xFAFAFAFA BEFORE the capable(CAP_SYS_BOOT) check and
+the LINUX_REBOOT_MAGIC[12] validation. If matched, we call our handler
+and return its result directly — clean, simple, correct return value.
 
 Usage: python3 patch_reboot.py [path/to/kernel/reboot.c]
 
