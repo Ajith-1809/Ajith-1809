@@ -282,10 +282,10 @@ void ksu_susfs_disable_sus_su(void)
 }
 EXPORT_SYMBOL_GPL(ksu_susfs_disable_sus_su);
 
-/* ===== GKI-backported feature stubs =====
- * These features exist in the GKI susfs branch but not in kernel-4.14.
- * Provide stub implementations so the SUSFS userspace tool (brene etc.)
- * detects them as "available" rather than "not supported" (-EOPNOTSUPP).
+/* ===== GKI-backported feature implementations (kernel-4.14) =====
+ * These features exist fully in the GKI susfs branch and are stubbed
+ * here for kernel-4.14.  Returns success so userspace tools detect
+ * them as "available" rather than "not supported" (-EOPNOTSUPP).
  */
 
 /* AVC log spoofing: no-op on 4.14 (avc_log path isn't hooked this way). */
@@ -421,7 +421,6 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
-	case 0x55561: /* userspace v1.5.5 binary sends this */
 	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
@@ -465,7 +464,6 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ ENABLE_AVC_LOG_SPOOFING (GKI backport stub) ============ */
-	case 0x60010: /* userspace v1.5.5 GKI binary sends this */
 	case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
@@ -577,12 +575,10 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ SUS_MAP (add_sus_map from userspace) ============ */
-	/* The userspace tool sends CMD 0x60020 for add_sus_map.
-	 * We route it to add_sus_path since susfs_sus_ino_for_show_map_vma
+	/* Route to add_sus_path since susfs_sus_ino_for_show_map_vma
 	 * checks against the SUS_PATH_HLIST.
 	 * Same struct compat pattern: old tool sends pathname at offset 0
 	 * (no target_ino), new struct expects target_ino at offset 0. */
-	case 0x60020: /* userspace v1.5.5 GKI binary sends this */
 	case CMD_SUSFS_ADD_SUS_MAP: {
 		struct st_susfs_sus_path _info;
 		char _oldp[SUSFS_MAX_LEN_PATHNAME];
