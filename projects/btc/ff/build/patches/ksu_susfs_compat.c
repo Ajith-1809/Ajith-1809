@@ -431,8 +431,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
 	/* CMD code 0x55561 is master-branch's HIDE_SUS_MNTS_FOR_NON_SU_PROCS
 	 * (not defined in kernel-4.14). Treat as no-op for compatibility. */
-	case 0x55561:
-	case 0x60020: {
+	case 0x55561: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
 			return -EFAULT;
