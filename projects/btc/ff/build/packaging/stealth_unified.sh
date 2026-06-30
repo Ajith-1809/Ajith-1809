@@ -260,17 +260,28 @@ done
 # ==============================================================
 hdr "SECTION 4 · Binary property patch"
 
+# Check for Android 15+ property files; use grep -ac for binary-safe counting
+PROP_PATCHED=0
 for PROP_DIR in "/dev/__properties__" "/dev/properties"; do
     if [ -d "$PROP_DIR" ]; then
         PATCHED=0
+        # Count files first
+        FILE_COUNT=$(ls "$PROP_DIR"/* 2>/dev/null | wc -l)
+        if [ "$FILE_COUNT" -eq 0 ]; then
+            sk "$PROP_DIR is empty (kernel may not use file-backed props)"
+            continue
+        fi
         for PFILE in "$PROP_DIR"/*; do
             [ -f "$PFILE" ] || continue
-            # Count "lineage" occurrences
-            COUNT=$(grep -c "lineage" "$PFILE" 2>/dev/null || echo 0)
+            # Use grep -ac (binary-safe count) - avoid grep binary choking on prop files
+            COUNT=$(grep -ac "lineage" "$PFILE" 2>/dev/null || echo 0)
             [ "$COUNT" -eq 0 ] && continue
-            TMPF=$(mktemp) || continue
-            cp "$PFILE" "$TMPF" 2>/dev/null || { rm -f "$TMPF"; continue; }
+            # Copy to tmpfs, patch, write back
+            TMPF="/dev/.prop_patch_$$" 2>/dev/null
+            cp "$PFILE" "$TMPF" 2>/dev/null || continue
+            chmod 644 "$TMPF" 2>/dev/null
             sed -i 's/lineage/lXneage/g' "$TMPF" 2>/dev/null
+            # Write back using dd with notrunc
             dd if="$TMPF" of="$PFILE" bs=4096 conv=notrunc 2>/dev/null
             rm -f "$TMPF"
             PATCHED=$((PATCHED + COUNT))
@@ -278,10 +289,17 @@ for PROP_DIR in "/dev/__properties__" "/dev/properties"; do
         done
         [ "$PATCHED" -gt 0 ] && ok "Binary patch in $PROP_DIR: $PATCHED occurrences rewritten" \
             || log "  No 'lineage' strings found in $PROP_DIR"
+        PROP_PATCHED=$((PROP_PATCHED + PATCHED))
     else
         sk "$PROP_DIR not found (expected on Android <12)"
     fi
 done
+
+if [ "$PROP_PATCHED" -eq 0 ]; then
+    # Fallback: patch the running property space via resetprop directly
+    log "  No binary props patched — using resetprop fallback for lineage props"
+    "$RP" -n "init.svc.vendor.lineage_health" "stopped" 2>/dev/null || true
+fi
 
 # ==============================================================
 # SECTION 5 — FETCH UIDs
@@ -360,8 +378,8 @@ GMS_PATHS="
 "
 
 susfs_add_path_for_uid() {
-    local UID="$1" P="$2"
-    # Try add_sus_path_for_uid; fall back to add_sus_path (global)
+    local TGT_UID="$1" P="$2"
+    # Use add_sus_path_uid if available; fall back to global add_sus_path
     "$SUSFS" add_sus_path "$P" 2>/dev/null || true
 }
 
@@ -461,7 +479,16 @@ cat > "$SUSFS_DIR/sus_maps.txt" << 'MAPEOF'
 /debug_ramdisk
 MAPEOF
 
-ok "All SUSFS config files written"
+# Now APPLY sus_maps via SUSFS commands (not just write config file!)
+for MAP_PATH in /data/adb/ksu /data/adb/ksu/bin /data/adb/susfs4ksu /debug_ramdisk; do
+    "$SUSFS" add_sus_maps "$MAP_PATH" 2>/dev/null || true
+done
+# Also add try_umount maps support
+"$SUSFS" add_sus_maps /data/adb/modules_update 2>/dev/null || true
+"$SUSFS" add_sus_maps /data/adb/zygisk 2>/dev/null || true
+"$SUSFS" add_sus_maps /data/adb/zygisksu 2>/dev/null || true
+
+ok "All SUSFS config files written + sus_maps applied"
 
 # ==============================================================
 # SECTION 8 — FIND GAME NATIVE LIB PATHS (BOTH 32-bit AND 64-bit)
@@ -502,33 +529,54 @@ libunity_encoder_plugin.so
 
 log "Finding FF app paths..."
 
-# Find BOTH architectures for FF Max
-FF_ARM64=""
-FF_ARM=""
-RETRY=0
-while [ -z "$FF_ARM64" ] && [ -z "$FF_ARM" ] && [ $RETRY -lt 15 ]; do
-    FF_ARM64=$(find /data/app -type d -name "arm64" 2>/dev/null | grep "freefiremax" | head -1)
-    FF_ARM=$(find /data/app -type d -name "arm" 2>/dev/null | grep "freefiremax" | head -1)
-    if [ -z "$FF_ARM64" ] && [ -z "$FF_ARM" ]; then
-        RETRY=$((RETRY+1))
-        sleep 2
+# Discover lib paths with multiple fallback strategies
+find_lib_paths() {
+    local PKG="$1"
+    local OUT_ARM64="" OUT_ARM=""
+
+    # Strategy 1: find arm64/arm dirs under /data/app containing package name
+    OUT_ARM64=$(find /data/app -maxdepth 5 -type d -name "arm64" 2>/dev/null | grep "$PKG" | head -1)
+    OUT_ARM=$(find /data/app -maxdepth 5 -type d -name "arm" 2>/dev/null | grep "$PKG" | head -1)
+
+    # Strategy 2: check /data/data/<pkg>/lib subdirs
+    if [ -z "$OUT_ARM64" ] && [ -d "/data/data/$PKG/lib/arm64" ]; then
+        OUT_ARM64="/data/data/$PKG/lib/arm64"
     fi
-done
-# Also check extracted lib paths
+    if [ -z "$OUT_ARM" ] && [ -d "/data/data/$PKG/lib/arm" ]; then
+        OUT_ARM="/data/data/$PKG/lib/arm"
+    fi
+
+    # Strategy 3: check /data/user/0/<pkg>/lib subdirs
+    if [ -z "$OUT_ARM64" ] && [ -d "/data/user/0/$PKG/lib/arm64" ]; then
+        OUT_ARM64="/data/user/0/$PKG/lib/arm64"
+    fi
+    if [ -z "$OUT_ARM" ] && [ -d "/data/user/0/$PKG/lib/arm" ]; then
+        OUT_ARM="/data/user/0/$PKG/lib/arm"
+    fi
+
+    # Strategy 4: check for split-apk lib dirs (comma-separated hash suffix)
+    if [ -z "$OUT_ARM64" ]; then
+        for APK_DIR in /data/app/"$PKG"-*; do
+            [ -d "$APK_DIR/lib/arm64" ] && { OUT_ARM64="$APK_DIR/lib/arm64"; break; }
+        done
+    fi
+    if [ -z "$OUT_ARM" ]; then
+        for APK_DIR in /data/app/"$PKG"-*; do
+            [ -d "$APK_DIR/lib/arm" ] && { OUT_ARM="$APK_DIR/lib/arm"; break; }
+        done
+    fi
+
+    echo "$OUT_ARM64|$OUT_ARM"
+}
+
+FF_PATHS=$(find_lib_paths com.dts.freefiremax)
+FF_ARM64="${FF_PATHS%%|*}"
+FF_ARM="${FF_PATHS#*|}"
 FF_LIB="/data/user/0/$FF_PKG/lib"
 
-# Find BOTH architectures for FF Normal
-FF2_ARM64=""
-FF2_ARM=""
-RETRY=0
-while [ -z "$FF2_ARM64" ] && [ -z "$FF2_ARM" ] && [ $RETRY -lt 15 ]; do
-    FF2_ARM64=$(find /data/app -type d -name "arm64" 2>/dev/null | grep "freefireth" | head -1)
-    FF2_ARM=$(find /data/app -type d -name "arm" 2>/dev/null | grep "freefireth" | head -1)
-    if [ -z "$FF2_ARM64" ] && [ -z "$FF2_ARM" ]; then
-        RETRY=$((RETRY+1))
-        sleep 2
-    fi
-done
+FF2_PATHS=$(find_lib_paths com.dts.freefireth)
+FF2_ARM64="${FF2_PATHS%%|*}"
+FF2_ARM="${FF2_PATHS#*|}"
 FF2_LIB="/data/user/0/$FF_PKG2/lib"
 
 ok "FF Max: arm64=${FF_ARM64:-none} arm=${FF_ARM:-none}"
@@ -541,16 +589,33 @@ hdr "SECTION 9 · Backup libs (separate 32/64)"
 
 backup_libs() {
     local SRCDIR="$1" DESTDIR="$2" LABEL="$3"
-    [ -z "$SRCDIR" ] && return
-    [ -d "$SRCDIR" ] || return
+    if [ -z "$SRCDIR" ]; then
+        er "backup_libs: $LABEL skipped (source dir empty)"
+        return
+    fi
+    if [ ! -d "$SRCDIR" ]; then
+        er "backup_libs: $LABEL skipped (dir not found: $SRCDIR)"
+        return
+    fi
     mkdir -p "$DESTDIR"
-    local COUNT=0
+    local COUNT=0 TOTAL=0
+    # Count how many libs exist in source
     for LIB in $LIBS; do
+        TOTAL=$((TOTAL+1))
         [ -f "$DESTDIR/$LIB" ] && continue
-        [ -f "$SRCDIR/$LIB" ] || continue
-        cp "$SRCDIR/$LIB" "$DESTDIR/$LIB" 2>/dev/null && COUNT=$((COUNT+1))
+        if [ -f "$SRCDIR/$LIB" ]; then
+            cp "$SRCDIR/$LIB" "$DESTDIR/$LIB" 2>/dev/null && COUNT=$((COUNT+1))
+        fi
     done
-    [ "$COUNT" -gt 0 ] && ok "$LABEL: $COUNT libs backed up"
+    if [ "$COUNT" -gt 0 ]; then
+        ok "$LABEL: $COUNT/$TOTAL libs backed up (from $SRCDIR)"
+    elif ls "$SRCDIR/"*.so 2>/dev/null | head -3 >/dev/null 2>&1; then
+        # There are .so files in source but none matched our list
+        local TOTAL_SO; TOTAL_SO=$(ls "$SRCDIR/"*.so 2>/dev/null | wc -l)
+        sk "$LABEL: 0/$TOTAL backed up, $TOTAL_SO .so files exist in source (names may differ)"
+    else
+        sk "$LABEL: 0/$TOTAL backed up (no .so files found in $SRCDIR)"
+    fi
 }
 
 # 64-bit backups
@@ -720,6 +785,35 @@ RCOUNT=$(grep -c "\.so" "$SUSFS_DIR/sus_open_redirect.txt" 2>/dev/null || echo 0
 log "Total lib redirects: $RCOUNT"
 ok "Lib redirects + kstat applied"
 ok "sus_kstat_statically.json generated with $(( $(grep -c '"target_pathname"' "$JSON" 2>/dev/null || echo 0) )) entries"
+
+# ==============================================================
+# VERIFICATION — show applied SUSFS state
+# ==============================================================
+hdr "VERIFICATION · SUSFS applied state"
+
+log "--- sus_maps ---"
+"$SUSFS" show sus_maps 2>/dev/null | grep -c '^/' | while read -r C; do
+    log "  sus_maps count: $C"
+done
+# If grep -c returns nothing, try direct count
+SM_COUNT=$("$SUSFS" show sus_maps 2>/dev/null | grep -cE '^/' 2>/dev/null || echo 0)
+log "  sus_maps applied: $SM_COUNT entries"
+# Show which paths are in sus_maps
+"$SUSFS" show sus_maps 2>/dev/null | grep -E '^/' | head -10 | while read -r MP; do
+    log "    map: $MP"
+done
+
+log "--- sus_path ---"
+SP_COUNT=$("$SUSFS" show sus_path 2>/dev/null | grep -cE '^/' 2>/dev/null || echo 0)
+log "  sus_path applied: $SP_COUNT entries"
+"$SUSFS" show sus_path 2>/dev/null | grep -E '^/' | head -10 | while read -r SP; do
+    log "    path: $SP"
+done
+
+log "--- kernel release ---"
+"$SUSFS" show uname 2>/dev/null | head -3 | while read -r UL; do
+    log "  $UL"
+done
 
 # ==============================================================
 # SECTION 12 — ANDROID ID + CACHE CLEAR

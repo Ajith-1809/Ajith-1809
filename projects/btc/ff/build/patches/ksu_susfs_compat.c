@@ -337,15 +337,33 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 
 	switch (cmd) {
 
-	/* ============ SUS_PATH commands ============ */
+		/* ============ SUS_PATH commands ============ */
 	case CMD_SUSFS_ADD_SUS_PATH:
 	case CMD_SUSFS_ADD_SUS_PATH_LOOP: {
-		/* Direct struct passthrough: our kernel-4.14 struct layout
-		 * (target_ino at offset 0, pathname at offset 8) matches
-		 * what the userspace binary sends. No conversion needed. */
-		struct st_susfs_sus_path _info;
-		if (copy_from_user(&_info, arg, sizeof(_info)))
+		/* Struct layout conversion: the binary on device was compiled
+		 * with master-branch struct layout (pathname at offset 0,
+		 * target_ino at offset 256), while the kernel-4.14 branch
+		 * expects target_ino at offset 0 and pathname at offset 8.
+		 * Read each field separately and construct the kernel struct. */
+		char bin_pathname[SUSFS_MAX_LEN_PATHNAME];
+		unsigned long bin_ino;
+		struct st_susfs_sus_path _info = {0};
+
+		/* Binary sends pathname at offset 0 (256 bytes) */
+		if (copy_from_user(bin_pathname, arg, sizeof(bin_pathname)))
 			return -EFAULT;
+		/* Binary sends target_ino at offset 256 */
+		if (copy_from_user(&bin_ino,
+				   (void __user *)arg + SUSFS_MAX_LEN_PATHNAME,
+				   sizeof(bin_ino)))
+			return -EFAULT;
+
+		/* Fill kernel-4.14 struct: target_ino at offset 0,
+		 * pathname at offset 8 */
+		_info.target_ino = bin_ino;
+		memcpy(_info.target_pathname, bin_pathname,
+		       SUSFS_MAX_LEN_PATHNAME);
+
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)&_info);
@@ -353,17 +371,24 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 	}
 
-	/* ============ SUS_MOUNT commands ============ */
+
+		/* ============ SUS_MOUNT commands ============ */
 	case CMD_SUSFS_ADD_SUS_MOUNT: {
-		struct st_susfs_sus_mount _info;
-		if (copy_from_user(&_info, arg, sizeof(_info)))
+		/* Binary sends only pathname (256 bytes) without target_dev.
+		 * Kernel-4.14 expects pathname + dev (264 bytes). Zero-fill
+		 * the dev field to avoid garbage. */
+		struct st_susfs_sus_mount _info = {0};
+		if (copy_from_user(_info.target_pathname, arg,
+				   sizeof(_info.target_pathname)))
 			return -EFAULT;
+		/* target_dev stays 0 from {0} initialization */
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_sus_mount((struct st_susfs_sus_mount __user *)&_info);
 		set_fs(old_fs);
 		break;
 	}
+
 
 	/* ============ SUS_KSTAT commands ============ */
 	case CMD_SUSFS_ADD_SUS_KSTAT:
@@ -404,9 +429,8 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	/* ============ HIDE_SUS_MNTS (GKI backport stub) ============ */
-	case CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS:
-	/* Alias: v1.5.5 userspace binary sends 0x60020 for this CMD */
-	/* Alias: GKI userspace binary sends 0x55561 */
+	/* CMD code 0x55561 is master-branch's HIDE_SUS_MNTS_FOR_NON_SU_PROCS
+	 * (not defined in kernel-4.14). Treat as no-op for compatibility. */
 	case 0x55561:
 	case 0x60020: {
 		int enabled;
@@ -416,28 +440,40 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 	}
 
-	/* ============ SPOOF_UNAME commands ============ */
+		/* ============ SPOOF_UNAME commands ============ */
 	case CMD_SUSFS_SET_UNAME: {
-		struct st_susfs_uname _info;
-		if (copy_from_user(&_info, arg, sizeof(_info)))
+		/* Binary was compiled with master-branch struct layout:
+		 *   char sysname[65]  at offset 0
+		 *   char nodename[65] at offset 65
+		 *   char release[65]  at offset 130
+		 *   char version[65]  at offset 195
+		 *   char machine[65]  at offset 260
+		 * Kernel-4.14 expects only:
+		 *   char release[65]  at offset 0
+		 *   char version[65]  at offset 65
+		 * Extract release and version from the correct offsets. */
+		struct st_susfs_uname _info = {0};
+		char bin_release[__NEW_UTS_LEN + 1];
+
+		/* Binary: release at offset 130 (65 sysname + 65 nodename) */
+		if (copy_from_user(bin_release,
+				   (void __user *)arg + (__NEW_UTS_LEN + 1) * 2,
+				   sizeof(bin_release)))
 			return -EFAULT;
+		memcpy(_info.release, bin_release, sizeof(bin_release));
+
+		/* Binary: version at offset 195 (65*3 = sysname+nodename+release) */
+		if (copy_from_user(_info.version,
+				   (void __user *)arg + (__NEW_UTS_LEN + 1) * 3,
+				   sizeof(_info.version)))
+			return -EFAULT;
+
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_set_uname((struct st_susfs_uname __user *)&_info);
 		set_fs(old_fs);
 		if (ret == 0) {
-			/* Also update the system utsname directly so /proc/version,
-			 * /proc/sys/kernel/osrelease, and /proc/sys/kernel/version
-			 * return spoofed values. SUSFS's uname hook only applies to
-			 * the uname() syscall, not direct utsname() reads.
-			 */
 			susfs_spoof_uname(utsname());
-			/* Force-override the release field to hide the real kernel
-			 * version string. The userspace binary passes release=default,
-			 * which copies back the real value ("4.14.357--9-...").
-			 * Disclosure Detector flags "4.14.357" specifically as a
-			 * custom kernel backport.
-			 */
 			strncpy(utsname()->release, "4.14.275",
 				sizeof(utsname()->release) - 1);
 			utsname()->release[sizeof(utsname()->release) - 1] = '\0';
@@ -447,6 +483,7 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 
 	}
+
 
 	/* ============ ENABLE_LOG ============ */
 	case CMD_SUSFS_ENABLE_LOG: {
@@ -459,8 +496,8 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 	}
 
 	/* ============ ENABLE_AVC_LOG_SPOOFING (GKI backport stub) ============ */
-	case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING:
-	/* Alias: v1.5.5 userspace binary sends 0x60010 for this CMD */
+	/* 0x60010 is master-branch CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING, not
+	 * defined in 4.14. Treat as no-op. */
 	case 0x60010: {
 		int enabled;
 		if (copy_from_user(&enabled, arg, sizeof(enabled)))
@@ -499,22 +536,12 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 
 	/* ============ SUS_SU ============
 	 * sus_su mode switching is guarded by CONFIG_KSU_SUSFS_SUS_SU.
-	 * We only compile the dispatch calls when the config is enabled.
-	 * When disabled (the default), users get -EOPNOTSUPP. */
-#ifdef CONFIG_KSU_SUSFS_SUS_SU
-	case CMD_SUSFS_SUS_SU:
-		ret = susfs_sus_su((struct st_sus_su __user *)arg);
-		break;
-	case CMD_SUSFS_IS_SUS_SU_READY:
-		ret = susfs_get_sus_su_working_mode();
-		break;
-	case CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE:
-		ret = susfs_get_sus_su_working_mode();
-		break;
-#else
-	case CMD_SUSFS_SUS_SU:
-	case CMD_SUSFS_IS_SUS_SU_READY:
-	case CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE:
+	 * The kernel-4.14 branch has no CONFIG_KSU_SUSFS_SUS_SU, so the
+	 * CMDs are unconditionally mapped to -EOPNOTSUPP fall-through. */
+#ifndef CONFIG_KSU_SUSFS_SUS_SU
+	case 0x60000: /* CMD_SUSFS_SUS_SU */
+	case 0x555f0: /* CMD_SUSFS_IS_SUS_SU_READY */
+	case 0x555e4: /* CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE */
 		ret = -EOPNOTSUPP;
 		break;
 #endif
@@ -575,20 +602,36 @@ int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg)
 		break;
 	}
 
-	/* ============ SUS_MAP (add_sus_map from userspace) ============ */
-	/* Routes to susfs_add_sus_path (kernel-4.14 treats SUS_MAP as path
-	 * hiding via the SUS_PATH_HLIST). Direct struct passthrough matches
-	 * the kernel-4.14 layout: target_ino at offset 0, pathname at 8. */
-	case CMD_SUSFS_ADD_SUS_MAP: {
-		struct st_susfs_sus_path _info;
-		if (copy_from_user(&_info, arg, sizeof(_info)))
+		/* ============ SUS_MAP (add_sus_map from userspace) ============ */
+	/* 0x60020 is master-branch CMD_SUSFS_ADD_SUS_MAP, not defined in 4.14.
+	 * Routes to susfs_add_sus_path (kernel-4.14 treats SUS_MAP as path
+	 * hiding via the SUS_PATH_HLIST). Same master-branch struct
+	 * conversion as CMD_SUSFS_ADD_SUS_PATH is needed. */
+	case 0x60020: {
+		char bin_pathname[SUSFS_MAX_LEN_PATHNAME];
+		unsigned long bin_ino;
+		struct st_susfs_sus_path _info = {0};
+
+		/* Binary sends pathname at offset 0 (256 bytes) */
+		if (copy_from_user(bin_pathname, arg, sizeof(bin_pathname)))
 			return -EFAULT;
+		/* Binary sends target_ino at offset 256 */
+		if (copy_from_user(&bin_ino,
+				   (void __user *)arg + SUSFS_MAX_LEN_PATHNAME,
+				   sizeof(bin_ino)))
+			return -EFAULT;
+
+		_info.target_ino = bin_ino;
+		memcpy(_info.target_pathname, bin_pathname,
+		       SUSFS_MAX_LEN_PATHNAME);
+
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)&_info);
 		set_fs(old_fs);
 		break;
 	}
+
 
 	/* ============ GKI backport commands ============ */
 	case CMD_SUSFS_ADD_SUS_MAPS: {
