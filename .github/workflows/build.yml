@@ -251,6 +251,14 @@ jobs:
           python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_reboot.py"
           echo "=== kernel/reboot.c patched ==="
 
+      - name: Patch kernel/sys.c prctl for SUSFS dispatch (kernel-4.14 binary ABI)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Patching kernel/sys.c for SUSFS prctl(0xDEADBEEF, ...) dispatch ==="
+          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_prctl.py"
+          echo "=== kernel/sys.c prctl intercepted ==="
+
       - name: Update SUSFS header CMD defines
         run: |
           set -euo pipefail
