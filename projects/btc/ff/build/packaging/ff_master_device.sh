@@ -211,38 +211,33 @@ apply_uid_hiding() {
   fi
 
   # ── lineage/ROM artifacts: sanitize shown pathname in /proc/pid/maps ──
-  # The "suspicious memory mapping (lineage os)" check reads org.lineageos paths
-  # out of process maps. SUS_MAP (Mode-1 inode match) rewrites the SHOWN pathname
-  # to a benign real path; the real file/inode is untouched. Keep add_sus_path too
-  # (hides the on-disk file from readdir listings). Both work on erofs /system /vendor.
-  # Spoof target must be a *real* path so the maps line still looks legit.
+  # The "suspicious memory mapping (lineage os)" check reads org.lineageos AND
+  # vendor.lineage.* paths out of process maps. SUS_MAP (Mode-1 inode match)
+  # rewrites the SHOWN pathname to a benign real path; the real file/inode is
+  # untouched. add_sus_path also hides the on-disk file from readdir. Both work on
+  # erofs /system /vendor. Spoof target must be a *real* path (real inode/size) so
+  # the maps line still looks legit.
+  # Device-verified mapped surface (system_server): org.lineageos.platform.{jar,
+  # odex,vdex}, platform-res.apk, /vendor/lib64/vendor.lineage.livedisplay@2.*.so,
+  # health-V2-ndk.so. The old hardcoded liblineage_*.so guesses did NOT exist and
+  # the org.lineageos-only find missed vendor.lineage.*. Enumerate dynamically.
   SPOOF_SO=/system/lib64/libc.so
   SPOOF_JAR=/system/framework/framework.jar
-  LINEAGE_PATHS="
-/system/framework/org.lineageos.platform.jar
-/system/framework/org.lineageos.platform-res.apk
-/system/lib64/liblineage_os_utils.so
-/system/lib64/liblineage_compat.so
-/system/lib64/liblineage_camera.so
-/vendor/lib64/liblineage_media.so
-"
-  for P in $LINEAGE_PATHS; do
-    if [ -e "$P" ]; then
-      ksu_susfs add_sus_path "$P" 2>/dev/null
-      case "$P" in
-        *.so)  ksu_susfs add_sus_maps "$P" "$SPOOF_SO" 2>/dev/null ;;
-        *)     ksu_susfs add_sus_maps "$P" "$SPOOF_JAR" 2>/dev/null ;;
-      esac
-    fi
-  done
-  find /system /vendor -path '*org.lineageos*' 2>/dev/null | \
-    while read -r P; do
-      ksu_susfs add_sus_path "$P" 2>/dev/null
-      case "$P" in
-        *.so)  ksu_susfs add_sus_maps "$P" "$SPOOF_SO" 2>/dev/null ;;
-        *)     ksu_susfs add_sus_maps "$P" "$SPOOF_JAR" 2>/dev/null ;;
-      esac
-    done
+  hide_lineage_map() {  # $1 = real path
+    [ -e "$1" ] || return
+    ksu_susfs add_sus_path "$1" 2>/dev/null
+    case "$1" in
+      *.so)  ksu_susfs add_sus_maps "$1" "$SPOOF_SO"  2>/dev/null ;;
+      *)     ksu_susfs add_sus_maps "$1" "$SPOOF_JAR" 2>/dev/null ;;
+    esac
+  }
+  # (a) exact detection surface: whatever is ACTUALLY mapped right now
+  cat /proc/[0-9]*/maps 2>/dev/null | tr -s ' ' | cut -d' ' -f6 \
+    | grep '^/' | grep -i lineage | sort -u \
+    | while read -r P; do hide_lineage_map "$P"; done
+  # (b) on-disk sweep: covers files not yet mapped at early-boot (service.d) time
+  find /system /system_ext /vendor /product -iname '*lineage*' 2>/dev/null \
+    | while read -r P; do hide_lineage_map "$P"; done
 
   echo "All UID rules applied!" >> $LOG
 }
