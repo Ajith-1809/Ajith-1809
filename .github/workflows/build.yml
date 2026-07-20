@@ -439,6 +439,10 @@ jobs:
           mkdir -p "$(dirname "$OUT")"
           "$CLANG" -static -O2 -D__ANDROID_API__=21 -I "$(dirname "$SRC")" "$SRC" -o "$OUT"
           chmod 755 "$OUT"
+          # NDK r25b -static emits PT_TLS with p_align=8; ARM64 Bionic loader rejects
+          # (<64) with "TLS segment is underaligned" -> binary can't exec on device.
+          # Patch the program header in place, then assert it took.
+          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/fix_tls_align.py" "$OUT" --verify
           # aarch64 binary can't run on the x86_64 runner — grep the string, don't exec.
           grep -q add_sus_maps "$OUT" && echo "ksu_susfs add_sus_maps OK" \
             || { echo "::error::add_sus_maps missing from built ksu_susfs"; exit 1; }
