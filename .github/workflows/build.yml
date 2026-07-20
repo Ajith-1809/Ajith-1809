@@ -181,6 +181,14 @@ jobs:
             echo "susfs.o already in fs/Makefile"
           fi
 
+      - name: Patch binder.c — hide LineageOS services from listServices(4) replies (SUSFS #2)
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT/build/sources/tillua467"
+          echo "=== Injecting SUSFS service-list scrub into drivers/android/binder.c ==="
+          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_binder_service_hide.py" drivers/android/binder.c
+          grep -q "susfs_scrub_servicemanager_reply" drivers/android/binder.c && echo "binder service-hide injected OK" || { echo "::error::binder service-hide inject failed"; exit 1; }
+
       - name: Integrate KernelSU-Next (legacy branch — latest for 4.14) via setup.sh
         run: |
           set -euo pipefail
