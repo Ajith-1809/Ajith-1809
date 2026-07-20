@@ -13,6 +13,8 @@
 #include <fcntl.h>
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
+#include <sys/syscall.h>
+#include <stdint.h>
 
 /*************************
  ** Define Const Values **
@@ -38,6 +40,22 @@
 #define CMD_SUSFS_IS_SUS_SU_READY 0x555f0
 #define CMD_SUSFS_SUS_SU 0x60000
 
+
+/* KSUN v3.2.0-LEGACY routes SUSFS via reboot() syscall, NOT prctl.
+   ksu_susfs_compat.c::susfs_handle_sys_reboot() intercepts
+   reboot(0xDEADBEEF, 0xFAFAFAFA, cmd, arg). */
+#ifndef __NR_reboot
+#define __NR_reboot 142
+#endif
+#ifndef RB_SUSFS_MAGIC1
+#define RB_SUSFS_MAGIC1 0xDEADBEEF
+#define RB_SUSFS_MAGIC2 0xFAFAFAFA
+#endif
+static int susfs_call(unsigned int cmd, void *arg) {
+    errno = 0;
+    long r = syscall(__NR_reboot, RB_SUSFS_MAGIC1, RB_SUSFS_MAGIC2, cmd, arg);
+    return (r == 0) ? 0 : -1;
+}
 /* GKI backport commands (kernel-4.14 SUS_MAP backport, wired in ksu_susfs_compat.c).
    The stock v1.5.5 userspace tool never sends these, so we add them here to drive the
    already-present kernel display hook that sanitizes /proc/pid/maps pathnames. */
@@ -79,9 +97,10 @@
  ** Define Struct **
  *******************/
 struct st_susfs_sus_path {
-	unsigned long           target_ino;
 	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
-};
+	uint32_t                bin_uid;
+	unsigned long           target_ino;
+} __attribute__((packed));
 
 struct st_susfs_sus_mount {
 	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
@@ -210,7 +229,7 @@ int enable_sus_su(int last_working_mode, int target_working_mode) {
 
 	if (target_working_mode == SUS_SU_WITH_HOOKS) {
 		info.mode = SUS_SU_WITH_HOOKS;
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_SUS_SU, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_SUS_SU, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SUS_SU);
 		if (error) {
 			if (error == 1) {
@@ -223,7 +242,7 @@ int enable_sus_su(int last_working_mode, int target_working_mode) {
 		log("[+] sus_su mode 2 is enabled\n");
 	} else if (target_working_mode == SUS_SU_DISABLED) {
 		info.mode = SUS_SU_DISABLED;
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_SUS_SU, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_SUS_SU, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SUS_SU);
 		if (error) {
 			if (error == 1) {
@@ -345,7 +364,7 @@ int main(int argc, char *argv[]) {
 		}
 		info.target_ino = sb.st_ino;
 		strncpy(info.target_pathname, argv[2], SUSFS_MAX_LEN_PATHNAME-1);
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_SUS_PATH, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_SUS_PATH, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_SUS_PATH);
 		return error;
 	// add_sus_mount
@@ -359,7 +378,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		info.target_dev = sb.st_dev;
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_SUS_MOUNT, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_SUS_MOUNT, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_SUS_MOUNT);
 		return error;
 	// add_sus_kstat_statically
@@ -489,7 +508,7 @@ int main(int argc, char *argv[]) {
 		}
 		strncpy(info.target_pathname, argv[2], SUSFS_MAX_LEN_PATHNAME-1);
 		copy_stat_to_sus_kstat(&info, &sb);
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY);
 		return error;
 	// add_sus_kstat
@@ -505,7 +524,7 @@ int main(int argc, char *argv[]) {
 		info.is_statically = false;
 		info.target_ino = sb.st_ino;
 		copy_stat_to_sus_kstat(&info, &sb);
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_SUS_KSTAT, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_SUS_KSTAT, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_SUS_KSTAT);
 		return error;
 	// update_sus_kstat
@@ -522,7 +541,7 @@ int main(int argc, char *argv[]) {
 		info.target_ino = sb.st_ino;
 		info.spoofed_size = sb.st_size; // use the current size, not the spoofed one
 		info.spoofed_blocks = sb.st_blocks; // use the current blocks, not the spoofed one
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_UPDATE_SUS_KSTAT, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_UPDATE_SUS_KSTAT, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_UPDATE_SUS_KSTAT);
 		return error;
 	// update_sus_kstat_full_clone
@@ -537,7 +556,7 @@ int main(int argc, char *argv[]) {
 		strncpy(info.target_pathname, argv[2], SUSFS_MAX_LEN_PATHNAME-1);
 		info.is_statically = false;
 		info.target_ino = sb.st_ino;
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_UPDATE_SUS_KSTAT, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_UPDATE_SUS_KSTAT, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_UPDATE_SUS_KSTAT);
 		return error;
 	// add_try_umount
@@ -570,12 +589,12 @@ int main(int argc, char *argv[]) {
 			print_help();
 			return 1;
 		}
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_TRY_UMOUNT, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_TRY_UMOUNT, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_TRY_UMOUNT);
 		return error;
 	// run_try_umount
 	} else if (argc == 2 && !strcmp(argv[1], "run_try_umount")) {
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_RUN_UMOUNT_FOR_CURRENT_MNT_NS, NULL, NULL, &error);
+		error = susfs_call(CMD_SUSFS_RUN_UMOUNT_FOR_CURRENT_MNT_NS, NULL);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_RUN_UMOUNT_FOR_CURRENT_MNT_NS);
 		return error;
 	// set_uname
@@ -584,7 +603,7 @@ int main(int argc, char *argv[]) {
 		
 		strncpy(info.release, argv[2], __NEW_UTS_LEN);
 		strncpy(info.version, argv[3], __NEW_UTS_LEN);
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_SET_UNAME, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_SET_UNAME, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SET_UNAME);
 		return error;
 	// enable_log
@@ -593,7 +612,7 @@ int main(int argc, char *argv[]) {
 			print_help();
 			return 1;
 		}
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ENABLE_LOG, atoi(argv[2]), NULL, &error);
+		error = susfs_call(CMD_SUSFS_ENABLE_LOG, (void *)(long)atoi(argv[2]));
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ENABLE_LOG);
 		return error;
 	// set_cmdline_or_bootconfig
@@ -631,7 +650,7 @@ int main(int argc, char *argv[]) {
 		}
 		buffer[file_size] = '\0';
 		fclose(file);
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG, buffer, NULL, &error);
+		error = susfs_call(CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG, buffer);
 		free(buffer);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG);
 		return error;
@@ -659,7 +678,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		info.target_ino = sb.st_ino;
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_OPEN_REDIRECT, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_OPEN_REDIRECT, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_OPEN_REDIRECT);
 		return error;
 	// add_sus_maps <target_path> <spoofed_path>
@@ -683,7 +702,7 @@ int main(int argc, char *argv[]) {
 			strncpy(info.spoofed_pathname, argv[3], SUSFS_MAX_LEN_PATHNAME - 1);
 			info.spoofed_pathname[SUSFS_MAX_LEN_PATHNAME - 1] = '\0';
 		}
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_ADD_SUS_MAPS, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_ADD_SUS_MAPS, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_SUS_MAPS);
 		return error;
 	// update_sus_maps <target_path>
@@ -691,14 +710,14 @@ int main(int argc, char *argv[]) {
 		struct st_susfs_sus_maps info = {0};
 		strncpy(info.target_pathname, argv[2], SUSFS_MAX_LEN_PATHNAME - 1);
 		info.target_pathname[SUSFS_MAX_LEN_PATHNAME - 1] = '\0';
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_UPDATE_SUS_MAPS, &info, NULL, &error);
+		error = susfs_call(CMD_SUSFS_UPDATE_SUS_MAPS, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_UPDATE_SUS_MAPS);
 		return error;
 	// show
 	} else if (argc == 3 && !strcmp(argv[1], "show")) {
 		if (!strcmp(argv[2], "version")) {
 			char version[16];
-			prctl(KERNEL_SU_OPTION, CMD_SUSFS_SHOW_VERSION, version, NULL, &error);
+			error = susfs_call(CMD_SUSFS_SHOW_VERSION, version);
 			PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SHOW_VERSION);
 			if (!error)
 				printf("%s\n", version);
@@ -712,7 +731,7 @@ int main(int argc, char *argv[]) {
 				return -ENOMEM;
 			}
 			ptr_buf = enabled_features_buf;
-			prctl(KERNEL_SU_OPTION, CMD_SUSFS_SHOW_ENABLED_FEATURES, &enabled_features, NULL, &error);
+			error = susfs_call(CMD_SUSFS_SHOW_ENABLED_FEATURES, enabled_features_buf);
 			PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SHOW_ENABLED_FEATURES);
 			if (!error) {
 				if (enabled_features & (1 << 0)) {
@@ -795,7 +814,7 @@ int main(int argc, char *argv[]) {
 			}
 		} else if (!strcmp(argv[2], "variant")) {
 			char variant[16];
-			prctl(KERNEL_SU_OPTION, CMD_SUSFS_SHOW_VARIANT, variant, NULL, &error);
+			error = susfs_call(CMD_SUSFS_SHOW_VARIANT, variant);
 			PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SHOW_VARIANT);
 			if (!error)
 				printf("%s\n", variant);
@@ -807,7 +826,7 @@ int main(int argc, char *argv[]) {
 		int target_working_mode;
 		char* endptr;
 
-		prctl(KERNEL_SU_OPTION, CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE, &last_working_mode, NULL, &error);
+		error = susfs_call(CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE, &last_working_mode);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE);
 		if (error)
 			return error;
@@ -822,7 +841,7 @@ int main(int argc, char *argv[]) {
 		}
 		if (target_working_mode == SUS_SU_WITH_HOOKS) {
 			bool is_sus_su_ready;
-			prctl(KERNEL_SU_OPTION, CMD_SUSFS_IS_SUS_SU_READY, &is_sus_su_ready, NULL, &error);
+			error = susfs_call(CMD_SUSFS_IS_SUS_SU_READY, &is_sus_su_ready);
 			PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_IS_SUS_SU_READY);
 			if (error)
 				return error;

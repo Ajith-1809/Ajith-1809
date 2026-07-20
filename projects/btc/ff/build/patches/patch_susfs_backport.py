@@ -49,26 +49,47 @@ EXTERN_INSERT = (
     "#endif\n"
 )
 
-# The call site lands just before show_vma_header_prefix() prints the entry.
-# phoenix (CAF 4.14) names the locals start/end and vm_flags_t flags, so the
-# real call text differs from upstream GKI/5.x SUSFS trees that use
-# vma->vm_start/vma->vm_end/prot. Anchored on the full arg list to stay unique
-# (the line-871 show_map_vma variant uses a different arg list).
-CALL_ANCHOR = "show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);"
+# Function-local SUS_MAP scratch vars, declared alongside the other locals
+# (right after `const char *name = NULL;`). `susfs_map_name` is the buffer the
+# spoofer fills with the replacement pathname on a full spoof (ret == 2).
+LOCAL_ANCHOR = "\tconst char *name = NULL;"
+LOCAL_INSERT = (
+    "#ifdef CONFIG_KSU_SUSFS_SUS_MAP\n"
+    "\tint susfs_map_ret = 0;\n"
+    "\tunsigned long long susfs_map_pgoff = 0;\n"
+    "\tint susfs_map_flags = 0;\n"
+    "\tchar susfs_map_name[256] = {0};\n"
+    "#endif\n"
+)
+
+# Invoke the spoofer right AFTER dev/ino/pgoff are resolved from the file
+# (before `start = vma->vm_start;`). The spoofer rewrites *spoofed_ino /
+# *spoofed_dev / *spoofed_pgoff (used by the header) and, on a full spoof,
+# fills susfs_map_name (used by the path print below).
+CALL_ANCHOR = "\tstart = vma->vm_start;"
 CALL_INSERT = (
     "#ifdef CONFIG_KSU_SUSFS_SUS_MAP\n"
-    "\t{\n"
-    "\t\tunsigned long long susfs_map_pgoff = 0;\n"
-    "\t\tint susfs_map_flags = 0;\n"
-    "\t\tchar susfs_map_name[SUSFS_MAX_LEN_PATHNAME] = {0};\n"
-    "\t\tint susfs_map_ret = susfs_sus_maps(ino, vma->vm_end - vma->vm_start,\n"
-    "\t\t                                   &ino, &dev, &susfs_map_flags,\n"
-    "\t\t                                   &susfs_map_pgoff, vma, susfs_map_name);\n"
+    "\tif (file) {\n"
+    "\t\tsusfs_map_ret = susfs_sus_maps(ino, vma->vm_end - vma->vm_start,\n"
+    "\t\t\t\t\t   &ino, &dev, &susfs_map_flags,\n"
+    "\t\t\t\t\t   &susfs_map_pgoff, vma, susfs_map_name);\n"
     "\t\tif (susfs_map_ret >= 1 && susfs_map_pgoff)\n"
     "\t\t\tpgoff = susfs_map_pgoff;\n"
-    "\t\t(void)susfs_map_flags; (void)susfs_map_name; (void)susfs_map_ret;\n"
     "\t}\n"
     "#endif\n"
+)
+
+# The path string is printed by seq_file_path() inside the SECOND `if (file)`
+# block — which runs AFTER show_vma_header_prefix(). Replace it with the
+# spoofed pathname when the spoofer returned a full spoof (ret == 2).
+PATH_ANCHOR = "\t\tseq_file_path(m, file, \"\\n\");"
+PATH_INSERT = (
+    "#ifdef CONFIG_KSU_SUSFS_SUS_MAP\n"
+    "\t\tif (susfs_map_ret == 2 && susfs_map_name[0])\n"
+    "\t\t\tseq_printf(m, \"%s\\n\", susfs_map_name);\n"
+    "\t\telse\n"
+    "#endif\n"
+    "\t\t\tseq_file_path(m, file, \"\\n\");"
 )
 
 
@@ -112,14 +133,24 @@ def wire_task_mmu(task_mmu_path):
     if EXTERN_ANCHOR not in text:
         raise SystemExit(
             "::error::task_mmu.c missing anchor ext: %r" % EXTERN_ANCHOR)
+    if LOCAL_ANCHOR not in text:
+        raise SystemExit(
+            "::error::task_mmu.c missing anchor local: %r" % LOCAL_ANCHOR)
     if CALL_ANCHOR not in text:
         raise SystemExit(
             "::error::task_mmu.c missing anchor call: %r" % CALL_ANCHOR)
+    if PATH_ANCHOR not in text:
+        raise SystemExit(
+            "::error::task_mmu.c missing anchor path: %r" % PATH_ANCHOR)
 
     # 1) extern declaration right after the existing SUS_KSTAT extern.
     text = text.replace(EXTERN_ANCHOR, EXTERN_ANCHOR + "\n" + EXTERN_INSERT, 1)
-    # 2) call block immediately before show_vma_header_prefix().
+    # 2) function-local scratch vars right after `const char *name = NULL;`.
+    text = text.replace(LOCAL_ANCHOR, LOCAL_ANCHOR + "\n" + LOCAL_INSERT, 1)
+    # 3) spoofer call right after dev/ino/pgoff are resolved.
     text = text.replace(CALL_ANCHOR, CALL_INSERT + CALL_ANCHOR, 1)
+    # 4) override the path print when a full spoof (ret == 2) is active.
+    text = text.replace(PATH_ANCHOR, PATH_INSERT, 1)
     write_text(task_mmu_path, text)
     print("  fs/proc/task_mmu.c: SUS_MAP wired into show_map_vma")
 
