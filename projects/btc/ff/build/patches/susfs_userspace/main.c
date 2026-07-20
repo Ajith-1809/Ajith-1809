@@ -683,8 +683,12 @@ int main(int argc, char *argv[]) {
 		return error;
 	// add_sus_maps <target_path> <spoofed_path>
 	// Drive the kernel SUS_MAP display hook: match the vma by inode (compare_mode=1)
-	// and rewrite the shown pathname in /proc/pid/maps to <spoofed_path>. The real
-	// file/inode is untouched; only the maps string is sanitized.
+	// and rewrite the shown /proc/pid/maps entry to <spoofed_path>. We spoof the
+	// pathname AND the ino/dev to the *spoofed* file's REAL values, so the shown line
+	// is self-consistent (e.g. framework.jar path + framework.jar's real inode).
+	// A pathname-only spoof leaves the target's original inode, producing a
+	// path/inode mismatch that detectors flag as "inconsistent inode". The real
+	// on-disk file/inode is untouched; only the maps line is sanitized.
 	} else if (argc >= 3 && !strcmp(argv[1], "add_sus_maps")) {
 		struct st_susfs_sus_maps info = {0};
 		struct stat sb;
@@ -699,8 +703,17 @@ int main(int argc, char *argv[]) {
 		info.target_pathname[SUSFS_MAX_LEN_PATHNAME - 1] = '\0';
 		info.need_to_spoof_pathname = true;
 		if (argc >= 4) {
+			struct stat spoof_sb;
 			strncpy(info.spoofed_pathname, argv[3], SUSFS_MAX_LEN_PATHNAME - 1);
 			info.spoofed_pathname[SUSFS_MAX_LEN_PATHNAME - 1] = '\0';
+			// Match the shown inode/dev to the spoofed file so the line is
+			// self-consistent (kills the "inconsistent inode" tell).
+			if (!get_file_stat(argv[3], &spoof_sb)) {
+				info.spoofed_ino = spoof_sb.st_ino;
+				info.spoofed_dev = spoof_sb.st_dev;
+				info.need_to_spoof_ino = true;
+				info.need_to_spoof_dev = true;
+			}
 		}
 		error = susfs_call(CMD_SUSFS_ADD_SUS_MAPS, &info);
 		PRT_MSG_IF_OPERATION_NOT_SUPPORTED(error, CMD_SUSFS_ADD_SUS_MAPS);
