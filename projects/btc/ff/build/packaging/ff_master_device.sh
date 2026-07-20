@@ -739,7 +739,7 @@ for _k in ro.lineage.version ro.lineage.device ro.lineage.build.version \
           ro.matrixx.device ro.matrixx.display.version ro.matrixx.display_resolution \
           ro.matrixx.chipset ro.matrixx.battery ro.matrixx.release.code \
           ro.matrixx.release.type ro.kernel.version; do
-  resetprop -d "$_k" 2>/dev/null || resetprop "$_k" ""
+  resetprop -d "$_k" 2>/dev/null
 done
 resetprop ro.build.fingerprint "$_FP"
 resetprop ro.build.description "phoenix-user 15 BP1A.250505.005 Z1.9.28 release-keys"
@@ -767,17 +767,15 @@ resetprop ro.product.vendor_dlkm.name "phoenixin"
 resetprop ro.product.manufacturer "Xiaomi"
 
 # ── lineage/crdroid ROM tell: ro.lineage.* props ──
-# The ROM ships these (even when empty, the property NAMES are the tell
-# detectors read via __system_property_get). Mask the high-signal ones to
-# POCO stock values so the "found suspicious prop (ro.lineage.device=)" check
-# can't match. Keep as resetprop (runtime memory tree), not file edits.
-for _lp in \
-    ro.lineage.device ro.lineage.version ro.lineage.build.version \
-    ro.lineage.display.version ro.lineage.releasetype ro.lineage.build.date \
-    ro.lineage.build.date.utc ro.lineage.build.id ro.lineage.build.type \
-    ro.lineage.build.zip_type ro.lineagelegal.url ro.modversion \
-    ro.crdroidlegal.url ro.build.lineage.version; do
-    resetprop -d "$_lp" 2>/dev/null || resetprop "$_lp" ""
+# The ROM ships these; the property NAME itself is the tell that detectors read
+# via __system_property_get. A BLANK value ("ro.lineage.device=") is flagged the
+# same as a populated one — absent is the only safe state. DELETE, never blank.
+# Enumerate dynamically so newly-added ro.lineage/crdroid keys are covered too.
+# NOTE: no "|| resetprop $k ''" fallback — that RECREATES the key blank and
+# reintroduces the exact tell we're deleting (the original bug).
+for _lp in $(getprop | sed -n 's/^\[\(ro\.\(lineage\|crdroid\|modversion\|build\.lineage\)[^]]*\)\].*/\1/p') \
+           ro.lineagelegal.url ro.crdroidlegal.url ro.modversion ro.build.lineage.version; do
+    resetprop -d "$_lp" 2>/dev/null
 done
 
 echo "ROM hidden!" >> $LOG
