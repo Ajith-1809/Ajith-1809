@@ -239,6 +239,13 @@ apply_uid_hiding() {
   find /system /system_ext /vendor /product -iname '*lineage*' 2>/dev/null \
     | while read -r P; do hide_lineage_map "$P"; done
 
+  # (c) kernel binder scrub: hide lineage services from listServices(4) replies
+  # for GMS/Disclosure/FF UIDs. Opt-in kernel switch (default OFF, safe).
+  if [ -w /sys/kernel/susfs_hide_lineage_services ]; then
+    echo 1 > /sys/kernel/susfs_hide_lineage_services 2>/dev/null
+    echo "binder service-list scrub: ON" >> $LOG
+  fi
+
   echo "All UID rules applied!" >> $LOG
 }
 
