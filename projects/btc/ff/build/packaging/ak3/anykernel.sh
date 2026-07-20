@@ -123,4 +123,18 @@ if [ -f "$AKHOME/bin/ksu_susfs" ]; then
   fi
 fi
 
+# ── Neutralize susfs4ksu module binary-override (memory #18) ──
+# sidex15/susfs4ksu-module re-downloads a foreign universal ksu_susfs (no add_sus_maps)
+# and cp/mv it over ours on action/update/boot-check. Stub the three offending scripts
+# so ours stays authoritative. Guarded: only if the module is actually installed.
+SUSMOD=/data/adb/modules/susfs4ksu
+if [ -d "$SUSMOD" ]; then
+  ui_print " Neutralizing susfs4ksu binary-override scripts...";
+  printf '#!/system/bin/sh\necho match\nexit 0\n' > "$SUSMOD/susfs-bin-check.sh" 2>/dev/null
+  printf '#!/system/bin/sh\nexit 0\n' > "$SUSMOD/susfs-bin-update.sh" 2>/dev/null
+  printf '#!/system/bin/sh\nexit 0\n' > "$SUSMOD/action.sh" 2>/dev/null
+  chmod 755 "$SUSMOD/susfs-bin-check.sh" "$SUSMOD/susfs-bin-update.sh" "$SUSMOD/action.sh" 2>/dev/null
+  ui_print " susfs4ksu override neutralized (our ksu_susfs pinned)";
+fi
+
 ## end install

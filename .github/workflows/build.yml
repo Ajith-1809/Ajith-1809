@@ -426,6 +426,24 @@ jobs:
           echo "ksud binary: $(ls -lh "$KSUD_DST" | awk '{print $5}')"
           echo "=== KSud binary ready ==="
 
+      - name: Build ksu_susfs userspace (add_sus_maps) via NDK r25b
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/ndk.zip \
+            "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip"
+          mkdir -p /opt/ndk
+          unzip -q /tmp/ndk.zip -d /opt/ndk
+          CLANG="/opt/ndk/android-ndk-r25b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
+          SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/susfs_userspace/main.c"
+          OUT="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3/bin/ksu_susfs"
+          mkdir -p "$(dirname "$OUT")"
+          "$CLANG" -static -O2 -D__ANDROID_API__=21 -I "$(dirname "$SRC")" "$SRC" -o "$OUT"
+          chmod 755 "$OUT"
+          # aarch64 binary can't run on the x86_64 runner — grep the string, don't exec.
+          grep -q add_sus_maps "$OUT" && echo "ksu_susfs add_sus_maps OK" \
+            || { echo "::error::add_sus_maps missing from built ksu_susfs"; exit 1; }
+          ls -lh "$OUT"
+
       - name: Verify versions
         id: inspect
         run: |
@@ -512,6 +530,7 @@ jobs:
           test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
           test -f "$AK3_SRC/bin/init.kernelSU.rc" || { echo "::error::init.kernelSU.rc not found"; exit 1; }
           test -f "$AK3_SRC/bin/ksud" || { echo "::error::ksud binary not found at $AK3_SRC/bin/ksud"; exit 1; }
+          test -f "$AK3_SRC/bin/ksu_susfs" || { echo "::error::ksu_susfs binary not found at $AK3_SRC/bin/ksu_susfs"; exit 1; }
           mkdir -p "$OUT_DIR"
           rm -rf /tmp/ak3-package
           cp -r "$AK3_SRC" /tmp/ak3-package
