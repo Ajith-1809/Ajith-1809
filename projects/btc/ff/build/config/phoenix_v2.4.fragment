@@ -1,0 +1,53 @@
+# Kernel naming - set custom localversion
+CONFIG_LOCALVERSION="-unholy-kernel-with-aks"
+# CONFIG_LOCALVERSION_AUTO is not set
+
+# SUSFS features for phoenix kernel (tillua467 source, v2.4 tag)
+# Appended to vendor/phoenix_defconfig before olddefconfig
+# Stock SUSFS kernel-4.14 features only (no GKI backports)
+# KSU hook mode: MANUAL with fs/exec.c inline hook insertion
+
+# Kernel core features
+CONFIG_KALLSYMS=y
+
+# KernelSU core (always needed)
+CONFIG_KSU=y
+CONFIG_KSU_SUSFS=y
+# CONFIG_KSU_DEBUG disabled: it creates /sys/module/kernelsu/parameters/
+# ksu_debug_manager_appid + kernelsu.ksu_debug_manager_appid= in cmdline,
+# which detectors flag as "KSU-Next via sysfs". Other KSU builds ship with
+# this off. Trade-off: no KSU debug logging, acceptable for a stealth build.
+# CONFIG_KSU_DEBUG is not set
+CONFIG_KSU_DISABLE_POLICY=y
+
+# KernelSU manual hook mode — disables auto-kprobes (which crash on CAF 4.14
+# due to kprobe handler crashes in ksud_integration.c). Instead we manually
+# insert ksu_handle_execve_ksud() into fs/exec.c via build/patches/patch_fs_exec.py
+# so KSU can inject the driver fd into processes on execve.
+CONFIG_KSU_MANUAL_HOOK=y
+
+# SUSFS core features
+CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y
+CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+CONFIG_KSU_SUSFS_ENABLE_LOG=y
+CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+
+# GKI backports — enabled for stronger hide/spoof stealth.
+# These Kconfig options exist in susfs_kconfig_menu.txt with 'default y' and
+# depend on KSU_SUSFS. The kernel-4.14 SUSFS source ships the backports
+# (susfs_def.h defines CMD_SUSFS_ADD_SUS_MAP*), so they compile on 4.14.
+CONFIG_KSU_SUSFS_SUS_MAP=y
+CONFIG_KSU_SUSFS_SUS_MEMFD=y
+CONFIG_KSU_SUSFS_SUS_PROC_FD_LINK=y
+
+

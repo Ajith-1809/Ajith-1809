@@ -1,0 +1,32 @@
+CONFIG_KSU=y
+CONFIG_KSU_DEBUG=y
+# Main SUSFS toggle — must be set BEFORE sub-options so fs/susfs.c compiles
+CONFIG_KSU_SUSFS=y
+# Use kprobes hook mode instead of MANUAL_HOOK. On this kernel (4.14 CAF),
+# kprobes works reliably and avoids the reboot.c supercall dispatch patch
+# which conflicts with the KBapna tree's existing hook layout.
+CONFIG_KSU_KPROBES_HOOK=y
+# KSU depends on KPROBES for kernel hooking support
+CONFIG_KPROBES=y
+CONFIG_KALLSYMS=y
+CONFIG_MODULES=y
+CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y
+CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+CONFIG_KSU_SUSFS_ENABLE_LOG=y
+CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+CONFIG_KSU_SUSFS_SUS_MAP=y
+CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+# Vendor/MDM code (qcacld-3.0 etc) hits warnings new backport GCC promotes
+# to errors via -Wenum-int-mismatch/Wenum-compare etc. Turn off the global
+# -Werror toggle so the kernel still ships clean while SUSFS + KSU
+# throw zero warnings of their own.
+CONFIG_WERROR=n

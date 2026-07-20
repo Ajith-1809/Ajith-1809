@@ -1,0 +1,12 @@
+﻿# Build outputs (generated at CI runtime)
+projects/btc/ff/build/artifacts/
+projects/btc/ff/build/out/
+projects/btc/ff/build/sources/
+projects/btc/ff/build/*.log
+# Python cache
+__pycache__/
+*.pyc
+# OS / editor
+.DS_Store
+Thumbs.db
+*~

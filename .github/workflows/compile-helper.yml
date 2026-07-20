@@ -1,0 +1,74 @@
+name: Compile KSU Root Helper
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'projects/btc/ff/build/patches/ksu_root_helper.c'
+      - 'projects/btc/ff/build/patches/susfs_userspace/main.c'
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM64 GCC
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu
+
+      - name: Compile ksu_root_helper
+        run: |
+          aarch64-linux-gnu-gcc --version
+          aarch64-linux-gnu-gcc -static -Os -ffreestanding -nostdlib \
+            -o ksu_root_helper \
+            "projects/btc/ff/build/patches/ksu_root_helper.c"
+          file ksu_root_helper
+          aarch64-linux-gnu-strip ksu_root_helper
+          ls -lh ksu_root_helper
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu-root-helper
+          path: ksu_root_helper
+          retention-days: 30
+          compression-level: 0
+
+  build-ksu-susfs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NDK r25b (linux-x86_64)
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/ndk.zip \
+            "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip"
+          mkdir -p /opt/ndk
+          unzip -q /tmp/ndk.zip -d /opt/ndk
+          echo "ANDROID_NDK_HOME=/opt/ndk/android-ndk-r25b" >> "$GITHUB_ENV"
+
+      - name: Cross-compile ksu_susfs (add_sus_maps)
+        run: |
+          set -euo pipefail
+          CLANG="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
+          SRC="$GITHUB_WORKSPACE/projects/btc/ff/build/patches/susfs_userspace/main.c"
+          OUT="$GITHUB_WORKSPACE/projects/btc/ff/build/packaging/ak3/bin/ksu_susfs"
+          mkdir -p "$(dirname "$OUT")"
+          "$CLANG" -static -O2 -D__ANDROID_API__=21 \
+            -I "$(dirname "$SRC")" "$SRC" -o "$OUT"
+          chmod 755 "$OUT"
+          # The binary is aarch64; the CI runner is x86_64, so we cannot EXECUTE it here.
+          # Verify the add_sus_maps string is embedded in the ELF instead of running it.
+          grep -q add_sus_maps "$OUT" && echo "userspace add_sus_maps OK" \
+            || { echo "::error::add_sus_maps missing from built ksu_susfs"; exit 1; }
+          ls -lh "$OUT"
+
+      - name: Upload ksu_susfs binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu_susfs-add_sus_maps
+          path: projects/btc/ff/build/packaging/ak3/bin/ksu_susfs
+          retention-days: 30
+          compression-level: 0
