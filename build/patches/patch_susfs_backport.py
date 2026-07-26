@@ -40,6 +40,17 @@ EXTERN_ANCHOR = (
     "extern void susfs_sus_ino_for_show_map_vma(unsigned long ino, "
     "dev_t *out_dev, unsigned long *out_ino);"
 )
+# Fallback insert point when the VFS patch didn't add the extern (common on
+# kernels where the patch hunks rejected). We inject after the
+# `#include <linux/mm.h>` line in task_mmu.c.
+FALLBACK_INCLUDE_ANCHOR = "#include <linux/mm.h>"
+FALLBACK_EXTERN_INSERT = (
+    "#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT\n"
+    "#include <linux/susfs_def.h>\n"
+    "extern void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);\n"
+    "#endif\n"
+)
+
 EXTERN_INSERT = (
     "#ifdef CONFIG_KSU_SUSFS_SUS_MAP\n"
     "extern int susfs_sus_maps(unsigned long ino, unsigned long addr_size,\n"
@@ -124,15 +135,45 @@ def append_backport(susfs_c_path, backport_path):
     print("  fs/susfs.c: GKI backport appended")
 
 
+def ensure_task_mmu_includes(text):
+    """If VFS patch didn't add susfs_def.h include, inject it."""
+    if "linux/susfs_def.h" in text:
+        return text, False
+    # Inject include after linux/mm.h (always present in task_mmu.c)
+    if FALLBACK_INCLUDE_ANCHOR in text:
+        text = text.replace(FALLBACK_INCLUDE_ANCHOR,
+                            FALLBACK_INCLUDE_ANCHOR + "\n" + FALLBACK_EXTERN_INSERT, 1)
+        print("  task_mmu.c: injected susfs_def.h include (VFS patch didn't apply)")
+        return text, True
+    raise SystemExit("::error::task_mmu.c missing include anchor for susfs_def.h")
+
+
 def wire_task_mmu(task_mmu_path):
     text = read_text(task_mmu_path)
     if "susfs_sus_maps(" in text:
         print("  fs/proc/task_mmu.c: SUS_MAP already wired — skipping")
         return
 
+    # Ensure susfs_def.h include exists (VFS patch may not have applied).
+    text, injected = ensure_task_mmu_includes(text)
+
+    # If VFS patch didn't add the extern, add it after the include we just injected
+    # (or after the existing SUS_KSTAT extern if one is present).
     if EXTERN_ANCHOR not in text:
-        raise SystemExit(
-            "::error::task_mmu.c missing anchor ext: %r" % EXTERN_ANCHOR)
+        # Try inserting after the susfs_def.h include we just added.
+        if injected:
+            text = text.replace(
+                FALLBACK_EXTERN_INSERT.rstrip(),
+                FALLBACK_EXTERN_INSERT.rstrip() + "\n" + EXTERN_INSERT, 1)
+        else:
+            # Fallback: insert before show_map_vma function.
+            SHOW_MAP_ANCHOR = "static void\nshow_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)"
+            if SHOW_MAP_ANCHOR in text:
+                text = text.replace(SHOW_MAP_ANCHOR, EXTERN_INSERT + "\n" + SHOW_MAP_ANCHOR, 1)
+            else:
+                raise SystemExit(
+                    "::error::task_mmu.c missing anchor ext: %r (and no fallback)" % EXTERN_ANCHOR)
+
     if LOCAL_ANCHOR not in text:
         raise SystemExit(
             "::error::task_mmu.c missing anchor local: %r" % LOCAL_ANCHOR)
@@ -143,13 +184,11 @@ def wire_task_mmu(task_mmu_path):
         raise SystemExit(
             "::error::task_mmu.c missing anchor path: %r" % PATH_ANCHOR)
 
-    # 1) extern declaration right after the existing SUS_KSTAT extern.
-    text = text.replace(EXTERN_ANCHOR, EXTERN_ANCHOR + "\n" + EXTERN_INSERT, 1)
-    # 2) function-local scratch vars right after `const char *name = NULL;`.
+    # 1) function-local scratch vars right after `const char *name = NULL;`.
     text = text.replace(LOCAL_ANCHOR, LOCAL_ANCHOR + "\n" + LOCAL_INSERT, 1)
-    # 3) spoofer call right after dev/ino/pgoff are resolved.
+    # 2) spoofer call right after dev/ino/pgoff are resolved.
     text = text.replace(CALL_ANCHOR, CALL_INSERT + CALL_ANCHOR, 1)
-    # 4) override the path print when a full spoof (ret == 2) is active.
+    # 3) override the path print when a full spoof (ret == 2) is active.
     text = text.replace(PATH_ANCHOR, PATH_INSERT, 1)
     write_text(task_mmu_path, text)
     print("  fs/proc/task_mmu.c: SUS_MAP wired into show_map_vma")
@@ -183,7 +222,8 @@ def main():
     final = read_text(susfs_c_path)
     if "susfs_sus_maps" not in final:
         raise SystemExit("::error::backport append did not land susfs_sus_maps")
-    if "susfs_sus_maps(" not in read_text(task_mmu_path):
+    task_mmu_final = read_text(task_mmu_path)
+    if "susfs_sus_maps(" not in task_mmu_final:
         raise SystemExit("::error::task_mmu.c SUS_MAP call not wired")
     print("=== SUSFS GKI backport integration OK ===")
 
