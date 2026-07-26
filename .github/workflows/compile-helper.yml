@@ -1,0 +1,35 @@
+name: Compile KSU Root Helper
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'projects/btc/ff/build/patches/ksu_root_helper.c'
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM64 GCC
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu
+
+      - name: Compile ksu_root_helper
+        run: |
+          aarch64-linux-gnu-gcc --version
+          aarch64-linux-gnu-gcc -static -Os -ffreestanding -nostdlib \
+            -o ksu_root_helper \
+            "projects/btc/ff/build/patches/ksu_root_helper.c"
+          file ksu_root_helper
+          aarch64-linux-gnu-strip ksu_root_helper
+          ls -lh ksu_root_helper
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu-root-helper
+          path: ksu_root_helper
+          retention-days: 30
+          compression-level: 0

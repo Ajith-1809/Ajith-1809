@@ -1,0 +1,54 @@
+From: Ajith <ajith@example.com>
+Date: Sat, 27 Jun 2026 23:11:00 +0530
+Subject: [PATCH] Forward SUSFS supercall magic to susfs_handle_sys_reboot()
+
+KPROBES_HOOK mode registers a kprobe on __arm64_sys_reboot to intercept
+the reboot syscall for KSU operations (KSU_INSTALL_MAGIC1 = 0xDEADBEEF).
+However, SUSFS uses 0xFAFAFAFA as its magic value, which was being
+silently dropped — the kprobe fired but ksu_handle_sys_reboot() returned
+immediately because magic1 didn't match the KSU magic.
+
+Add a check for SUSFS magic1 (0xFAFAFAFA) and forward the call to
+susfs_handle_sys_reboot() via its extern declaration. This allows
+SUSFS operations from userspace tools (brene, ksu_susfs tool) to work
+correctly under KPROBES_HOOK mode.
+
+The extern declaration is resolved at link time against our compat
+shim in drivers/kernelsu/susfs_compat.c.
+
+Signed-off-by: Ajith <ajith@example.com>
+---
+ kernel/supercall/supercall.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/KernelSU-Next/kernel/supercall/supercall.c b/KernelSU-Next/kernel/supercall/supercall.c
+index e8c0e37..c1cad43 100644
+--- a/KernelSU-Next/kernel/supercall/supercall.c
++++ b/KernelSU-Next/kernel/supercall/supercall.c
+@@ -26,6 +26,9 @@
+
+ #include "tiny_sulog.h"
+
++/* Forward declaration — resolves to susfs_handle_sys_reboot() in compat shim */
++extern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
++
+ static int do_grant_root(void __user *arg)
+ {
+ 	// we already check uid above on allowed_for_su()
+@@ -71,8 +74,16 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 			  void __user **arg)
+ {
+-	if (magic1 != KSU_INSTALL_MAGIC1)
++	if (magic1 != KSU_INSTALL_MAGIC1) {
++		/* SUSFS communication protocol: userspace calls
++		 * reboot(0xFAFAFAFA, 0, cmd, arg) to trigger SUSFS operations.
++		 * Route via our compat shim's susfs_handle_sys_reboot().
++		 */
++		if (magic1 == 0xFAFAFAFA) {
++			return susfs_handle_sys_reboot(cmd, *arg);
++		}
+ 		return 0;
++	}
+
+ #ifdef CONFIG_KSU_DEBUG
+ 	pr_info("sys_reboot: intercepted call! magic: 0x%x id: %d\n", magic1,

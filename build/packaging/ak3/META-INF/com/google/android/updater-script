@@ -1,0 +1,14 @@
+# AnyKernel3 - Flashable Zip Template for Kernel Releases
+# by osm0sis @ xda-developers
+
+ui_print(" ");
+ui_print("*******************************");
+ui_print(" Unholy Phoenix Kernel");
+ui_print(" KSU-Next v3.0.0 + SUSFS v1.5.5");
+ui_print("*******************************");
+ui_print(" ");
+
+is_slot_device=0;
+run_program("/sbin/busybox", "mount", "/system");
+package_extract_dir("tools", "/tmp/tools");
+run_program("/tmp/tools/ak3-core.sh", "kernel");

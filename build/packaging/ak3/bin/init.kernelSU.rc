@@ -1,0 +1,10 @@
+on post-fs-data
+    start ksud
+
+service ksud /sbin/ksud
+    class late_start
+    user root
+    group root
+    seclabel u:r:init:s0
+    oneshot
+    shutdown critical
