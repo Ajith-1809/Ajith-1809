@@ -1,4 +1,5 @@
 # Build Phoenix Kernel (tillua467 source) with KSUN Legacy + Stock SUSFS v1.5.5
+# Rebuild for AlphaDroid 13
 #
 # Source: https://github.com/tillua467-s-Playground/android_kernel_xiaomi_phoenix tag v2.4
 # Defconfig: arch/arm64/configs/vendor/phoenix_defconfig
