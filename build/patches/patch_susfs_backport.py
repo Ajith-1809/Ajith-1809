@@ -201,18 +201,13 @@ def wire_task_mmu(task_mmu_path):
 
 def main():
     workspace = os.environ.get("GITHUB_WORKSPACE", ".")
-    project_root = os.environ.get("PROJECT_ROOT", ".")
     here = os.getcwd()
 
-    print(f"  DEBUG workspace={workspace}", flush=True)
-    print(f"  DEBUG project_root={project_root}", flush=True)
-    print(f"  DEBUG here={here}", flush=True)
-
-    # Use PurePosixPath for CI paths (Linux-style) regardless of host OS.
-    # GITHUB_WORKSPACE and PROJECT_ROOT use forward slashes even on Windows runners.
+    # In CI, the script is checked out at GITHUB_WORKSPACE root,
+    # not under PROJECT_ROOT. Use workspace directly.
     susfs_c_path = os.path.join(here, SUSFS_C)
     task_mmu_path = os.path.join(here, TASK_MMU)
-    backport_path = str(PurePosixPath(workspace, project_root, BACKPORT_SRC_REL))
+    backport_path = os.path.join(workspace, BACKPORT_SRC_REL)
 
     print(f"  DEBUG susfs_c_path={susfs_c_path}", flush=True)
     print(f"  DEBUG task_mmu_path={task_mmu_path}", flush=True)
@@ -223,7 +218,7 @@ def main():
         print(f"  check: {p} -> {'OK' if exists else 'MISSING'}", flush=True)
         if not exists:
             with open('/tmp/backport_debug.log', 'w') as f:
-                f.write(f"MISSING: {p}\nworkspace={workspace}\nproject_root={project_root}\nhere={here}\nbackport_path={backport_path}\n")
+                f.write(f"MISSING: {p}\nworkspace={workspace}\nhere={here}\nbackport_path={backport_path}\n")
             raise SystemExit("::error::missing required file: %s" % p)
 
 
