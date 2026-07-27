@@ -554,26 +554,26 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-image-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/sources/tillua467/arch/arm64/boot/Image.gz-dtb
+          path: ${{ github.workspace }}/build/sources/tillua467/arch/arm64/boot/Image.gz-dtb
           retention-days: 30
 
       - name: Upload build log
         uses: actions/upload-artifact@v4
         with:
           name: kernel-build-log-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/sources/tillua467/build/kernel-build.log
+          path: ${{ github.workspace }}/build/sources/tillua467/build/kernel-build.log
           retention-days: 14
 
       - name: Upload manifest
         uses: actions/upload-artifact@v4
         with:
           name: manifest-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/sources/tillua467/build/manifest/MANIFEST.json
+          path: ${{ github.workspace }}/build/sources/tillua467/build/manifest/MANIFEST.json
           retention-days: 30
 
       - name: Upload AnyKernel3 flashable ZIP
         uses: actions/upload-artifact@v4
         with:
           name: anykernel3-${{ github.run_number }}
-          path: ${{ env.PROJECT_ROOT }}/build/out/Unholy_Phoenix_KSUN-Legacy_SUSFS-v1.5.5_phoenix-${{ github.run_number }}.zip
+          path: ${{ github.workspace }}/build/out/Unholy_Phoenix_KSUN-Legacy_SUSFS-v1.5.5_phoenix-${{ github.run_number }}.zip
           retention-days: 30
