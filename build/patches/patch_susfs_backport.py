@@ -162,14 +162,18 @@ def wire_task_mmu(task_mmu_path):
     # Ensure susfs_def.h include exists (VFS patch may not have applied).
     text, injected = ensure_task_mmu_includes(text)
 
-    # If VFS patch didn't add the extern, add it after the include we just injected
-    # (or after the existing SUS_KSTAT extern if one is present).
     # Always ensure the extern for susfs_sus_maps is present — the VFS patch
-    # may have applied its own extern for susfs_ino_for_show_map_vma but not
-    # ours.
-    if EXTERN_ANCHOR not in text:
-        # Try inserting after the susfs_def.h include we just added.
-        if injected:
+    # may have applied its own extern for susfs_ino_for_show_map_vma but NOT
+    # for susfs_sus_maps. Insert ours after the existing SUS_KSTAT extern if
+    # present, otherwise after the susfs_def.h include we just injected.
+    if "susfs_sus_maps(" not in text:
+        # Try inserting after the VFS extern for susfs_ino_for_show_map_vma
+        if EXTERN_ANCHOR in text:
+            text = text.replace(
+                EXTERN_ANCHOR,
+                EXTERN_ANCHOR + "\n" + EXTERN_INSERT, 1)
+        elif injected:
+            # Insert after the fallback include block we just added
             text = text.replace(
                 FALLBACK_EXTERN_INSERT.rstrip(),
                 FALLBACK_EXTERN_INSERT.rstrip() + "\n" + EXTERN_INSERT, 1)
