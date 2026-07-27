@@ -207,7 +207,9 @@ def main():
     backport_path = str(PurePosixPath(workspace, project_root, BACKPORT_SRC_REL))
 
     for p in (susfs_c_path, task_mmu_path, backport_path):
-        if not os.path.isfile(p):
+        exists = os.path.isfile(p)
+        print(f"  check: {p} -> {'OK' if exists else 'MISSING'}", flush=True)
+        if not exists:
             raise SystemExit("::error::missing required file: %s" % p)
 
     # Safety: the stock susfs.c must provide the symbols the backport relies on.
