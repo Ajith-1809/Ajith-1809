@@ -168,17 +168,17 @@ jobs:
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Wiring SUSFS GKI backport into fs/susfs.c + fs/proc/task_mmu.c ==="
           echo "--- pre-flight: script exists ---"
-          ls -la "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py"
+          ls -la "$GITHUB_WORKSPACE/build/patches/patch_susfs_backport.py"
           echo "--- pre-flight: file encoding ---"
-          file "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py"
+          file "$GITHUB_WORKSPACE/build/patches/patch_susfs_backport.py"
           echo "--- pre-flight: first 3 lines ---"
-          head -3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py"
+          head -3 "$GITHUB_WORKSPACE/build/patches/patch_susfs_backport.py"
           echo "--- pre-flight: python version ---"
           python3 --version
           echo "--- pre-flight: syntax check ---"
-          python3 -c "import py_compile; py_compile.compile('$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py', doraise=True)" && echo "syntax OK" || echo "syntax FAILED"
+          python3 -c "import py_compile; py_compile.compile('$GITHUB_WORKSPACE/build/patches/patch_susfs_backport.py', doraise=True)" && echo "syntax OK" || echo "syntax FAILED"
           echo "--- running backport ---"
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py" 2>&1 | tee /tmp/backport_stdout.log || true
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_susfs_backport.py" 2>&1 | tee /tmp/backport_stdout.log || true
           echo "=== backport stdout ==="
           cat /tmp/backport_stdout.log || true
           echo "=== backport debug log ==="
