@@ -28,6 +28,7 @@ Conventions: 4-space indent, docstrings, set -euo pipefail at the CI call site.
 """
 import os
 import sys
+from pathlib import PurePosixPath
 
 # Anchors must be unique in the target files.
 TASK_MMU = "fs/proc/task_mmu.c"
@@ -199,9 +200,11 @@ def main():
     project_root = os.environ.get("PROJECT_ROOT", ".")
     here = os.getcwd()
 
+    # Use PurePosixPath for CI paths (Linux-style) regardless of host OS.
+    # GITHUB_WORKSPACE and PROJECT_ROOT use forward slashes even on Windows runners.
     susfs_c_path = os.path.join(here, SUSFS_C)
     task_mmu_path = os.path.join(here, TASK_MMU)
-    backport_path = os.path.join(workspace, project_root, BACKPORT_SRC_REL)
+    backport_path = str(PurePosixPath(workspace, project_root, BACKPORT_SRC_REL))
 
     for p in (susfs_c_path, task_mmu_path, backport_path):
         if not os.path.isfile(p):
