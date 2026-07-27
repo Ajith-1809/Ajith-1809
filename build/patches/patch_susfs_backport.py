@@ -221,6 +221,10 @@ def main():
                 f.write(f"MISSING: {p}\nworkspace={workspace}\nhere={here}\nbackport_path={backport_path}\n")
             raise SystemExit("::error::missing required file: %s" % p)
 
+    print("  all files present — proceeding", flush=True)
+    append_backport(susfs_c_path, backport_path)
+    wire_task_mmu(task_mmu_path)
+
 
 if __name__ == "__main__":
     try:
