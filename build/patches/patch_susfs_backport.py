@@ -164,6 +164,9 @@ def wire_task_mmu(task_mmu_path):
 
     # If VFS patch didn't add the extern, add it after the include we just injected
     # (or after the existing SUS_KSTAT extern if one is present).
+    # Always ensure the extern for susfs_sus_maps is present — the VFS patch
+    # may have applied its own extern for susfs_ino_for_show_map_vma but not
+    # ours.
     if EXTERN_ANCHOR not in text:
         # Try inserting after the susfs_def.h include we just added.
         if injected:
