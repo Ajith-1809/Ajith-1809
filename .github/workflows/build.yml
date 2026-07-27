@@ -433,7 +433,7 @@ jobs:
       - name: Fetch pre-built ksud binary from KSU Next release
         run: |
           set -euo pipefail
-          KSUD_DST="$PROJECT_ROOT/build/packaging/ak3/bin/ksud"
+          KSUD_DST="$GITHUB_WORKSPACE/build/packaging/ak3/bin/ksud"
           KSUD_URL="https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v3.3.0/ksud-aarch64-linux-android"
           echo "Downloading ksud-aarch64-linux-android ..."
           curl -fL --retry 3 "$KSUD_URL" -o "$KSUD_DST"
