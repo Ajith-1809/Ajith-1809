@@ -226,7 +226,7 @@ jobs:
           else
             echo "=== Inserting SUSFS Kconfig entries before endmenu ==="
             python3 -c "import sys; k=open(sys.argv[1]).read(); m=open(sys.argv[2]).read(); k=k.replace('endmenu', m+chr(10)+'endmenu', 1); open(sys.argv[1],'w').write(k)" \
-              "$KCONFIG" "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/susfs_kconfig_menu.txt"
+              "$KCONFIG" "$GITHUB_WORKSPACE/build/config/susfs_kconfig_menu.txt"
             grep -q 'config KSU_SUSFS' "$KCONFIG" && echo "SUSFS Kconfig OK" || { echo "::error::SUSFS Kconfig insert failed"; exit 1; }
           fi
 
@@ -235,7 +235,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Installing SUSFS dispatch glue (susfs_compat.c) ==="
-          cp "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/ksu_susfs_compat.c" \
+          cp "$GITHUB_WORKSPACE/build/patches/ksu_susfs_compat.c" \
             drivers/kernelsu/susfs_compat.c
           echo '' >> drivers/kernelsu/Kbuild
           echo '# Custom: SUSFS supercall dispatch glue' >> drivers/kernelsu/Kbuild
@@ -249,7 +249,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching init.c: add apply_kernelsu_rules + cache_sid + ksu_load_allow_list in built-in path ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_init.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_init.py"
           echo "=== init.c patched ==="
 
       - name: Patch allowlist.c — grant root to shell before DISABLE_POLICY guard
@@ -257,7 +257,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching allowlist.c: ksu_grant_root_to_shell before DISABLE_POLICY guard ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_allowlist.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_allowlist.py"
           echo "=== allowlist.c patched ==="
 
       - name: Fix + instrument allowlist.c — gate profile version check under DISABLE_POLICY
@@ -265,7 +265,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching allowlist.c: gate KSU_APP_PROFILE_VER check behind #ifndef CONFIG_KSU_DISABLE_POLICY + add ksun_diag.log proof ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_profile_valid.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_profile_valid.py"
           echo "=== allowlist.c profile-valid fix applied ==="
 
       - name: Fix dispatch.c — let Manager grant apps under DISABLE_POLICY (SET_APP_PROFILE)
@@ -273,7 +273,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching dispatch.c: neutralize -EOPNOTSUPP early-return in do_set_app_profile under CONFIG_KSU_DISABLE_POLICY ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_set_app_profile_dispatch.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_set_app_profile_dispatch.py"
           echo "=== dispatch.c SET_APP_PROFILE fix applied ==="
 
       - name: Fix dispatch.c — let Manager READ per-uid app_profile under DISABLE_POLICY (Superuser list was empty)
@@ -281,7 +281,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching dispatch.c: neutralize -EOPNOTSUPP early-return in do_get_app_profile under CONFIG_KSU_DISABLE_POLICY (home count said N apps but Superuser list was empty) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_get_app_profile_dispatch.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_get_app_profile_dispatch.py"
           echo "=== dispatch.c GET_APP_PROFILE fix applied ==="
 
       - name: Fix allowlist.c — restore persisted grants at boot + drop phantom shell auto-grant under DISABLE_POLICY
@@ -289,7 +289,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching allowlist.c: (1) let ksu_load_allow_list() restore the persisted .allowlist bitmap at boot instead of early-returning under CONFIG_KSU_DISABLE_POLICY (grants were lost on reboot); (2) remove CONFIG_KSU_DEBUG ksu_grant_root_to_shell() auto-grant that showed up as a phantom default grant ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_allowlist_load.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_allowlist_load.py"
           echo "=== allowlist.c load/phantom fix applied ==="
 
       - name: Patch selinux.c — fallback INIT_CONTEXT when KSU domain transition fails
@@ -297,7 +297,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching selinux.c: fall back to INIT_CONTEXT on transive_to_domain failure ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_selinux_fallback.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_selinux_fallback.py"
           echo "=== selinux.c patched ==="
 
       - name: Patch KSUN supercall.c for SUSFS command dispatch (forward)
@@ -305,7 +305,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Forward-patching supercall.c for SUSFS dispatch (magic1=0xFAFAFAFA before KSU magic check) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_supercall.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_supercall.py"
           echo "=== supercall.c forward-patched ==="
 
       - name: DEBUG — instrument KSUN supercall.c with [ksu_driver] fd-delivery file logger
@@ -313,7 +313,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Instrumenting supercall.c (reboot-magic fd install path) with ksun_diag.log ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_manager_diag.py" \
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_manager_diag.py" \
             drivers/kernelsu/supercall/supercall.c \
             || echo "WARN: supercall.c diag instrumentation not applied — continuing build"
 
@@ -322,7 +322,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching kernel/reboot.c for SUSFS direct syscall return ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_reboot.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_reboot.py"
           echo "=== kernel/reboot.c patched ==="
 
       - name: Patch kernel/sys.c prctl for KSU GET_INFO + SUSFS dispatch (Manager detection fix)
@@ -330,7 +330,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching kernel/sys.c for KSU GET_INFO + SUSFS prctl dispatch ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_prctl.py" --ksu-dir KernelSU-Next
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_prctl.py" --ksu-dir KernelSU-Next
           echo "=== kernel/sys.c prctl intercepted ==="
 
       - name: Patch kernel/sys.c setresuid for KSU Manager [ksu_driver] fd delivery
@@ -338,7 +338,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching kernel/sys.c setresuid for KSU Manager fd delivery (no kprobes) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_setresuid.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_setresuid.py"
           grep -q "ksu_handle_setresuid" kernel/sys.c && \
             echo "kernel/sys.c: setresuid fd hook inserted OK" || { echo "::error::setresuid patch failed"; exit 1; }
 
@@ -347,7 +347,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Instrumenting setuid_hook.c (setresuid fd install path) with ksun_diag.log ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_manager_diag.py" \
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_manager_diag.py" \
             drivers/kernelsu/hook/setuid_hook.c \
             || echo "WARN: setuid_hook.c diag instrumentation not applied — continuing build"
 
@@ -356,7 +356,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching fs/exec.c: wiring KSU execve hook (fd injection + root elevation) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_fs_exec.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_fs_exec.py"
           grep -q "ksu_handle_execveat" fs/exec.c && \
             echo "fs/exec.c: execve hook inserted OK" || { echo "::error::fs/exec.c patch failed"; exit 1; }
 
@@ -365,7 +365,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching fs/read_write.c + fs/stat.c: wiring KSU init.rc RC-injection (read + newfstat) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_ksud_activation.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_ksud_activation.py"
           grep -q "ksu_handle_sys_read"     fs/read_write.c && \
             echo "fs/read_write.c: rc-inject read hook inserted OK" || { echo "::error::rc-inject read hook failed"; exit 1; }
           grep -q "ksu_handle_newfstat_ret" fs/stat.c && \
@@ -386,7 +386,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Patching kernel_umount.c for CAF 4.14 (no path_umount) ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_kernel_umount.py"
+          python3 "$GITHUB_WORKSPACE/build/patches/patch_kernel_umount.py"
           echo "=== kernel_umount.c patched ==="
 
       - name: Fix cam_utils include path (tillua467 tree check)
@@ -465,8 +465,8 @@ jobs:
           } >> "$GITHUB_ENV"
           # Append our SUSFS config fragment to the defconfig
           # tillua467 source uses vendor/phoenix_defconfig
-          DEFCONFIG="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/sources/tillua467/arch/arm64/configs/vendor/phoenix_defconfig"
-          FRAGMENT="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/config/phoenix_v2.4.fragment"
+          DEFCONFIG="$GITHUB_WORKSPACE/build/sources/tillua467/arch/arm64/configs/vendor/phoenix_defconfig"
+          FRAGMENT="$GITHUB_WORKSPACE/build/config/phoenix_v2.4.fragment"
           # Strip trailing newlines/concat
           echo "" >> "$DEFCONFIG"
           cat "$FRAGMENT" >> "$DEFCONFIG"
@@ -515,14 +515,14 @@ jobs:
         env:
           KSU_SOURCE_TAG: ${{ steps.inspect.outputs.ksud_version }}
           SUSFS_SOURCE_VERSION: ${{ steps.inspect.outputs.susfs_version }}
-        run: bash "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/manifest/report.sh" "$PWD"
+        run: bash "$GITHUB_WORKSPACE/build/manifest/report.sh" "$PWD"
 
       - name: Package AnyKernel3 flashable ZIP
         run: |
           set -euo pipefail
           KERNEL_SRC="$PROJECT_ROOT/build/sources/tillua467/arch/arm64/boot/Image.gz-dtb"
-          AK3_SRC="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/packaging/ak3"
-          OUT_DIR="$GITHUB_WORKSPACE/$PROJECT_ROOT/build/out"
+          AK3_SRC="$GITHUB_WORKSPACE/build/packaging/ak3"
+          OUT_DIR="$GITHUB_WORKSPACE/build/out"
           ZIP_NAME="Unholy_Phoenix_KSUN-Legacy_SUSFS-v1.5.5_phoenix-${{ github.run_number }}.zip"
           test -f "$KERNEL_SRC" || { echo "::error::Image.gz-dtb not found at $KERNEL_SRC"; exit 1; }
           test -f "$AK3_SRC/anykernel.sh" || { echo "::error::anykernel.sh not found"; exit 1; }
