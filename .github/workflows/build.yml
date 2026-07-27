@@ -475,11 +475,11 @@ jobs:
           echo "Config fragment appended to vendor/phoenix_defconfig"
 
       - name: make defconfig
-        working-directory: ${{ github.workspace }}/build/sources/tillua467
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: make ARCH=arm64 vendor/phoenix_defconfig
 
       - name: Ensure KSU_MANUAL_HOOK is set (required for CAF 4.14 — kprobes bootloop)
-        working-directory: ${{ github.workspace }}/build/sources/tillua467
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: |
           set -euo pipefail
           echo "=== Checking .config for hook mode ==="
@@ -492,11 +492,11 @@ jobs:
           grep -q "CONFIG_KSU=y" .config && echo "  CONFIG_KSU=y: OK" || echo "  WARNING: CONFIG_KSU not y"
 
       - name: make prepare
-        working-directory: ${{ github.workspace }}/build/sources/tillua467
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: make ARCH=arm64 prepare
 
       - name: Compile kernel + dtbs
-        working-directory: ${{ github.workspace }}/build/sources/tillua467
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: |
           set -euo pipefail
           mkdir -p build
@@ -505,7 +505,7 @@ jobs:
             |& tee build/kernel-build.log
 
       - name: Extract embedded kernel config
-        working-directory: ${{ github.workspace }}/build/sources/tillua467
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         run: |
           set -euo pipefail
           mkdir -p build/out
@@ -513,7 +513,7 @@ jobs:
             > build/out/embedded.config || true
 
       - name: Run manifest scan
-        working-directory: ${{ github.workspace }}/build/sources/tillua467
+        working-directory: ${{ env.PROJECT_ROOT }}/build/sources/tillua467
         env:
           KSU_SOURCE_TAG: ${{ steps.inspect.outputs.ksud_version }}
           SUSFS_SOURCE_VERSION: ${{ steps.inspect.outputs.susfs_version }}
