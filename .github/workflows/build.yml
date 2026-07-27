@@ -167,7 +167,11 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT/build/sources/tillua467"
           echo "=== Wiring SUSFS GKI backport into fs/susfs.c + fs/proc/task_mmu.c ==="
-          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py"
+          python3 "$GITHUB_WORKSPACE/$PROJECT_ROOT/build/patches/patch_susfs_backport.py" 2>&1 | tee /tmp/backport_stdout.log || true
+          echo "=== backport stdout ==="
+          cat /tmp/backport_stdout.log || true
+          echo "=== backport debug log ==="
+          cat /tmp/backport_debug.log || echo "(no debug log)"
           grep -q "susfs_sus_maps" fs/susfs.c && echo "backport appended OK" || { echo "::error::backport append failed"; exit 1; }
           grep -q "susfs_sus_maps(" fs/proc/task_mmu.c && echo "task_mmu.c SUS_MAP wired OK" || { echo "::error::task_mmu.c SUS_MAP wire failed"; exit 1; }
 

@@ -200,24 +200,18 @@ def main():
     project_root = os.environ.get("PROJECT_ROOT", ".")
     here = os.getcwd()
 
-    print(f"  DEBUG: workspace={workspace}", flush=True)
-    print(f"  DEBUG: project_root={project_root}", flush=True)
-    print(f"  DEBUG: here={here}", flush=True)
-
     # Use PurePosixPath for CI paths (Linux-style) regardless of host OS.
     # GITHUB_WORKSPACE and PROJECT_ROOT use forward slashes even on Windows runners.
     susfs_c_path = os.path.join(here, SUSFS_C)
     task_mmu_path = os.path.join(here, TASK_MMU)
     backport_path = str(PurePosixPath(workspace, project_root, BACKPORT_SRC_REL))
 
-    print(f"  DEBUG: susfs_c_path={susfs_c_path}", flush=True)
-    print(f"  DEBUG: task_mmu_path={task_mmu_path}", flush=True)
-    print(f"  DEBUG: backport_path={backport_path}", flush=True)
-
     for p in (susfs_c_path, task_mmu_path, backport_path):
         exists = os.path.isfile(p)
-        print(f"  check: {p} -> {'OK' if exists else 'MISSING'}", flush=True)
         if not exists:
+            # Write debug info to a file CI can capture as an artifact
+            with open('/tmp/backport_debug.log', 'w') as f:
+                f.write(f"MISSING: {p}\nworkspace={workspace}\nproject_root={project_root}\nhere={here}\nbackport_path={backport_path}\n")
             raise SystemExit("::error::missing required file: %s" % p)
 
     # Safety: the stock susfs.c must provide the symbols the backport relies on.
@@ -245,8 +239,10 @@ if __name__ == "__main__":
     try:
         main()
     except SystemExit as e:
-        print(f"  FATAL: SystemExit({e.code})", flush=True)
+        with open('/tmp/backport_debug.log', 'a') as f:
+            f.write(f"SystemExit({e.code})\n")
         raise
     except Exception as e:
-        print(f"  FATAL: {type(e).__name__}: {e}", flush=True)
+        with open('/tmp/backport_debug.log', 'a') as f:
+            f.write(f"{type(e).__name__}: {e}\n")
         raise
