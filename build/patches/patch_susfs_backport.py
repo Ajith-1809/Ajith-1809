@@ -200,11 +200,19 @@ def main():
     project_root = os.environ.get("PROJECT_ROOT", ".")
     here = os.getcwd()
 
+    print(f"  DEBUG: workspace={workspace}", flush=True)
+    print(f"  DEBUG: project_root={project_root}", flush=True)
+    print(f"  DEBUG: here={here}", flush=True)
+
     # Use PurePosixPath for CI paths (Linux-style) regardless of host OS.
     # GITHUB_WORKSPACE and PROJECT_ROOT use forward slashes even on Windows runners.
     susfs_c_path = os.path.join(here, SUSFS_C)
     task_mmu_path = os.path.join(here, TASK_MMU)
     backport_path = str(PurePosixPath(workspace, project_root, BACKPORT_SRC_REL))
+
+    print(f"  DEBUG: susfs_c_path={susfs_c_path}", flush=True)
+    print(f"  DEBUG: task_mmu_path={task_mmu_path}", flush=True)
+    print(f"  DEBUG: backport_path={backport_path}", flush=True)
 
     for p in (susfs_c_path, task_mmu_path, backport_path):
         exists = os.path.isfile(p)
@@ -234,4 +242,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit as e:
+        print(f"  FATAL: SystemExit({e.code})", flush=True)
+        raise
+    except Exception as e:
+        print(f"  FATAL: {type(e).__name__}: {e}", flush=True)
+        raise
