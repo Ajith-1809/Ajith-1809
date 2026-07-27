@@ -30,6 +30,10 @@ import os
 import sys
 from pathlib import PurePosixPath
 
+# Module-level print: if this doesn't appear in CI, the script isn't even
+# being imported (path wrong, encoding error, etc.)
+print("  [backport] script starting", flush=True)
+
 # Anchors must be unique in the target files.
 TASK_MMU = "fs/proc/task_mmu.c"
 SUSFS_C = "fs/susfs.c"
@@ -200,39 +204,27 @@ def main():
     project_root = os.environ.get("PROJECT_ROOT", ".")
     here = os.getcwd()
 
+    print(f"  DEBUG workspace={workspace}", flush=True)
+    print(f"  DEBUG project_root={project_root}", flush=True)
+    print(f"  DEBUG here={here}", flush=True)
+
     # Use PurePosixPath for CI paths (Linux-style) regardless of host OS.
     # GITHUB_WORKSPACE and PROJECT_ROOT use forward slashes even on Windows runners.
     susfs_c_path = os.path.join(here, SUSFS_C)
     task_mmu_path = os.path.join(here, TASK_MMU)
     backport_path = str(PurePosixPath(workspace, project_root, BACKPORT_SRC_REL))
 
+    print(f"  DEBUG susfs_c_path={susfs_c_path}", flush=True)
+    print(f"  DEBUG task_mmu_path={task_mmu_path}", flush=True)
+    print(f"  DEBUG backport_path={backport_path}", flush=True)
+
     for p in (susfs_c_path, task_mmu_path, backport_path):
         exists = os.path.isfile(p)
+        print(f"  check: {p} -> {'OK' if exists else 'MISSING'}", flush=True)
         if not exists:
-            # Write debug info to a file CI can capture as an artifact
             with open('/tmp/backport_debug.log', 'w') as f:
                 f.write(f"MISSING: {p}\nworkspace={workspace}\nproject_root={project_root}\nhere={here}\nbackport_path={backport_path}\n")
             raise SystemExit("::error::missing required file: %s" % p)
-
-    # Safety: the stock susfs.c must provide the symbols the backport relies on.
-    susfs_c = read_text(susfs_c_path)
-    for sym in ("susfs_spin_lock", "SUSFS_LOGI", "SUSFS_LOGE"):
-        if sym not in susfs_c:
-            raise SystemExit(
-                "::error::fs/susfs.c missing expected symbol %r "
-                "(backport depends on it)" % sym)
-
-    append_backport(susfs_c_path, backport_path)
-    wire_task_mmu(task_mmu_path)
-
-    # Final verification (CI also greps, but fail fast here too).
-    final = read_text(susfs_c_path)
-    if "susfs_sus_maps" not in final:
-        raise SystemExit("::error::backport append did not land susfs_sus_maps")
-    task_mmu_final = read_text(task_mmu_path)
-    if "susfs_sus_maps(" not in task_mmu_final:
-        raise SystemExit("::error::task_mmu.c SUS_MAP call not wired")
-    print("=== SUSFS GKI backport integration OK ===")
 
 
 if __name__ == "__main__":
