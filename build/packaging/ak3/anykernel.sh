@@ -12,7 +12,7 @@ do.cleanup=1
 do.cleanuponabort=0
 device.name1=phoenix
 device.name2=phoenixin
-supported.versions=99.99
+supported.versions=12 13
 supported.patchlevels=
 '; } # end properties
 
